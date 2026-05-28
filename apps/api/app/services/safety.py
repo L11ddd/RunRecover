@@ -25,7 +25,14 @@ def evaluate_safety(run_input: AnalyzeRecoveryRequest) -> list[str]:
     if run_input.soreness_level >= 8:
         flags.append("酸痛程度较高，建议避免下肢高强度训练，选择休息或轻松活动。")
 
-    if run_input.sleep_hours < 5 and run_input.tomorrow_plan == "intensity":
-        flags.append("睡眠不足且明日计划强度训练，建议取消或明显降低强度。")
+    if run_input.sleep_hours < 5 and run_input.tomorrow_plan in {"intensity", "long", "race"}:
+        flags.append("睡眠不足且明日计划高刺激训练，建议取消或明显降低强度。")
+
+    if (
+        run_input.past_48h_training in {"hard_training", "race_or_very_hard"}
+        and run_input.rpe >= 8
+        and run_input.tomorrow_plan in {"intensity", "long", "race"}
+    ):
+        flags.append("近 48 小时已有明显负荷叠加，且明日仍计划高刺激训练，建议优先恢复。")
 
     return flags

@@ -95,7 +95,7 @@ npm --version
 ```bash
 cd /Users/liuyidi/Project/RunRecover/apps/api
 python3 -m venv .venv
-./.venv/bin/pip install -r requirements.txt
+./.venv/bin/python3 -m pip install -r requirements.txt
 ```
 
 命令解释：
@@ -106,7 +106,7 @@ python3 -m venv .venv
 | `python3 -m venv .venv` | 在 `apps/api` 下创建 Python 虚拟环境，避免依赖安装到系统 Python。 |
 | `./.venv/bin/pip install -r requirements.txt` | 使用虚拟环境里的 pip 安装 FastAPI、Uvicorn、Pydantic、pytest、httpx 等后端依赖。 |
 
-如果已经在仓库根目录创建了 `.venv`，也可以从 `apps/api` 使用 `../../.venv/bin/uvicorn` 和 `../../.venv/bin/pytest`。为了演示流程清晰，推荐后端目录内单独使用 `apps/api/.venv`。
+如果已经在仓库根目录创建了 `.venv`，也可以从 `apps/api` 使用 `../../.venv/bin/python3 -m uvicorn` 和 `../../.venv/bin/python3 -m pytest`。为了演示流程清晰，推荐后端目录内单独使用 `apps/api/.venv`。
 
 ### 4.2 安装前端依赖
 
@@ -130,7 +130,7 @@ npm install
 
 ```bash
 cd /Users/liuyidi/Project/RunRecover/apps/api
-./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+./.venv/bin/python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 命令解释：
@@ -138,7 +138,7 @@ cd /Users/liuyidi/Project/RunRecover/apps/api
 | 命令或参数 | 解释 |
 | --- | --- |
 | `cd /Users/liuyidi/Project/RunRecover/apps/api` | 进入后端目录，确保默认数据库会创建在 `apps/api/data/runrecover.db`。 |
-| `./.venv/bin/uvicorn` | 使用后端虚拟环境里的 Uvicorn 启动 ASGI 服务。 |
+| `./.venv/bin/python3 -m uvicorn` | 使用后端虚拟环境里的 Python 直接运行 Uvicorn，避免 wrapper shebang 路径问题。 |
 | `app.main:app` | 指向 FastAPI 应用对象：`app/main.py` 文件中的 `app` 变量。 |
 | `--reload` | 开发模式热重载；代码变更后服务自动重启。 |
 | `--host 127.0.0.1` | 只监听本机地址，适合本地演示。 |
@@ -209,16 +209,16 @@ http://127.0.0.1:5173
 
 | 案例 | 输入特点 | 预期结果 |
 | --- | --- | --- |
-| `轻松恢复` | 5 km 轻松跑，RPE 3，睡眠 8 小时，疲劳 2，酸痛 2 | 约 19 分，等级为 `轻度恢复`。 |
-| `高强度夜跑` | 8 km 节奏跑，夜跑，RPE 8，睡眠 5.8 小时，明日强度课 | 约 75 分，等级为 `重点恢复`，原因包含 RPE、睡眠、明日计划。 |
-| `长距离高 RPE` | 16 km 长距离跑，RPE 9，疲劳 8，酸痛 7，明日长距离 | 约 84 分，等级为 `高负荷提醒`。 |
+| `轻松恢复跑` | 4 km 恢复跑，RPE 2，睡眠 8.2 小时，疲劳 2，酸痛 1 | 低负荷场景，适合展示常规恢复建议。 |
+| `睡眠不足稳态跑` | 9 km 稳态坡跑，夜跑，RPE 6，睡眠 4.8 小时，明日力量/交叉训练 | 重点展示睡眠不足、夜间训练和明日计划对恢复压力的影响。 |
+| `长距离肌肉负荷` | 18 km 长距离跑，RPE 7，睡眠 7.4 小时，酸痛 8，明日休息 | 高负荷场景，重点来自距离、时长和肌肉酸痛，而不是睡眠不足。 |
 
 推荐 5 分钟演示流程：
 
 1. 打开 `http://127.0.0.1:5173`。
-2. 点击 `轻松恢复`，说明低负荷场景下系统给出轻度恢复建议。
-3. 点击 `高强度夜跑`，说明 RPE、睡眠不足和明日强度冲突如何抬高恢复压力。
-4. 点击 `长距离高 RPE`，说明高负荷场景下系统会建议更保守的明日安排。
+2. 点击 `轻松恢复跑`，说明低负荷场景下系统给出轻度恢复建议。
+3. 点击 `睡眠不足稳态跑`，说明睡眠不足、夜间训练和明日安排如何抬高恢复压力。
+4. 点击 `长距离肌肉负荷`，说明长距离和酸痛明显时，即使睡眠足够也需要保守恢复。
 5. 手动勾选 `关节疼痛` 或 `疼痛影响走路`，点击 `开始分析`，展示安全提示如何出现。
 
 ### 6.3 手动输入字段
@@ -235,6 +235,7 @@ http://127.0.0.1:5173
 | `酸痛` | `1` 到 `10` | 腿部或身体酸痛程度。 |
 | `平均心率` | 可为空，或 `40` 到 `230` | 可选字段；为空时结果不会提到心率原因。 |
 | `最大心率` | 可为空，或 `40` 到 `230` | 可选字段；用于辅助判断训练强度。 |
+| `跑步水平` | 跑步新手、规律跑者、进阶跑者 | 只用于校准建议保守程度、解释文案和明日训练建议，不大幅改变恢复分数。 |
 | `饮食场景` | 正常饮食、减脂、素食、食堂、外卖、夜间轻食 | 影响饮食建议模板。 |
 | `明日计划` | 未确定、休息、轻松跑、强度课、长距离 | 高恢复压力下，强度课或长距离会触发冲突提示。 |
 | `异常信号` | 胸闷/胸痛、头晕、呼吸困难、关节疼痛、疼痛影响走路 | 触发安全提示和更保守的明日建议。 |
@@ -289,6 +290,7 @@ curl -X POST http://127.0.0.1:8000/api/recovery/analyze \
   -d '{
     "distance_km": 8,
     "duration_min": 48,
+    "user_level": "regular",
     "run_type": "tempo",
     "run_time_period": "night",
     "rpe": 8,
@@ -366,6 +368,7 @@ curl -X POST http://127.0.0.1:8000/api/recovery/analyze \
   -d '{
     "distance_km": 6,
     "duration_min": 38,
+    "user_level": "regular",
     "run_type": "easy",
     "run_time_period": "evening",
     "rpe": 7,
@@ -393,14 +396,17 @@ curl -X POST http://127.0.0.1:8000/api/recovery/analyze \
 | 环境变量 | 默认值 | 作用 |
 | --- | --- | --- |
 | `RUNRECOVER_DATABASE_URL` | `sqlite:///./data/runrecover.db` | 后端 SQLite 数据库地址。只支持 `sqlite:///`。 |
-| `RUNRECOVER_LLM_PROVIDER` | `template` | 推荐生成服务提供方。当前 MVP 使用模板。 |
+| `RUNRECOVER_LLM_PROVIDER` | `template` | 推荐生成服务提供方。可配置为 `template`、`deepseek`、`openai`、`anthropic` 或 `claude`。 |
+| `RUNRECOVER_LLM_API_KEY` | `` | LLM 服务 API Key。DeepSeek/OpenAI/Claude 模式都共用该变量。 |
+| `RUNRECOVER_LLM_BASE_URL` | `` | LLM 服务地址。默认由 provider 自动选取，可指定为 OpenAI、DeepSeek 或 Anthropic 的 endpoint。 |
+| `RUNRECOVER_LLM_MODEL` | `` | LLM 模型名称，默认由 provider 自动选取。 |
 | `VITE_API_BASE_URL` | `http://127.0.0.1:8000` | 前端请求后端 API 的基础地址。 |
 
 ### 8.1 临时指定后端数据库
 
 ```bash
 cd /Users/liuyidi/Project/RunRecover/apps/api
-RUNRECOVER_DATABASE_URL=sqlite:///./data/demo.db ./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+RUNRECOVER_DATABASE_URL=sqlite:///./data/demo.db ./.venv/bin/python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 命令解释：
@@ -408,7 +414,7 @@ RUNRECOVER_DATABASE_URL=sqlite:///./data/demo.db ./.venv/bin/uvicorn app.main:ap
 | 命令或参数 | 解释 |
 | --- | --- |
 | `RUNRECOVER_DATABASE_URL=sqlite:///./data/demo.db` | 只对本次命令生效，把数据库改为 `apps/api/data/demo.db`。 |
-| `./.venv/bin/uvicorn app.main:app ...` | 使用同样方式启动后端。 |
+| `./.venv/bin/python3 -m uvicorn app.main:app ...` | 使用同样方式启动后端。 |
 
 ### 8.2 临时指定前端 API 地址
 
@@ -509,7 +515,7 @@ curl http://127.0.0.1:8000/api/health
 
 ```bash
 cd /Users/liuyidi/Project/RunRecover/apps/api
-./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
+./.venv/bin/python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8001
 ```
 
 同时启动前端时指定新的 API 地址：
@@ -557,9 +563,9 @@ rm -f /Users/liuyidi/Project/RunRecover/apps/api/data/runrecover.db
 
 1. “RunRecover 解决的是跑后 24 小时该如何恢复的问题，不替代运动手表，也不做医疗诊断。”
 2. “左侧输入本次训练和身体状态，RPE 是主观用力评分，是恢复压力的重要因素之一。”
-3. “先看轻松恢复案例，系统给出低分，说明正常补水、吃饭和睡眠即可。”
-4. “再看高强度夜跑案例，分数上升到重点恢复，主要原因包括 RPE 高、睡眠不足和明日强度冲突。”
-5. “长距离高 RPE 案例进入高负荷提醒，系统建议明日休息或非常轻松活动。”
+3. “先看轻松恢复跑案例，系统给出低分，说明正常补水、吃饭和睡眠即可。”
+4. “再看睡眠不足稳态跑案例，强度并不极端，但睡眠不足、夜跑和明日安排会明显抬高恢复压力。”
+5. “长距离肌肉负荷案例进入高负荷提醒，主要压力来自距离、时长和酸痛，系统建议明日休息或非常轻松活动。”
 6. “如果勾选关节疼痛或疼痛影响走路，系统会出现安全提示，并建议优先保守处理。”
 
 ## 13. 一次完整本地演示命令清单
@@ -579,7 +585,7 @@ npm install
 
 ```bash
 cd /Users/liuyidi/Project/RunRecover/apps/api
-./.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+./.venv/bin/python3 -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 另开终端：

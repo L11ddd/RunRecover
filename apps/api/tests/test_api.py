@@ -43,12 +43,16 @@ def test_analyze_recovery_returns_complete_response(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert body["recovery_id"] >= 1
-    assert body["score"] == 75
+    assert body["score"] == 78
     assert body["level"] == "重点恢复"
-    assert body["component_scores"]["rpe"] == 15
+    assert body["component_scores"]["rpe"] == 13
+    assert body["component_scores"]["duration_load"] == 4
+    assert body["derived_metrics"]["session_load"] == 384
     assert len(body["reasons"]) >= 3
     assert len(body["timeline"]) >= 5
     assert body["advice"]["diet"]["title"] == "饮食建议"
+    assert body["recommendation_meta"]["llm_provider"] == "template"
+    assert body["recommendation_meta"]["advice_conservativeness"] == "balanced"
     assert body["safety_flags"] == []
 
 
@@ -82,3 +86,85 @@ def test_safety_response_places_flags(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert body["safety_flags"]
     assert "医疗诊断" in body["advice"]["safety_note"]
+
+
+def test_new_training_fields_are_accepted(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        response = client.post(
+            "/api/recovery/analyze",
+            json=valid_payload(
+                run_type=None,
+                run_type_main="interval",
+                run_type_modifier=["hills", "long_intervals"],
+                past_48h_training="hard_training",
+            ),
+        )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["component_scores"]["run_modifier"] == 8
+    assert body["component_scores"]["recent_training"] == 7
+    assert any(reason["factor"] == "训练修饰" for reason in body["reasons"])
+
+
+def test_user_level_calibrates_advice_without_changing_score(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        beginner_response = client.post(
+            "/api/recovery/analyze",
+            json=valid_payload(user_level="beginner"),
+        )
+        advanced_response = client.post(
+            "/api/recovery/analyze",
+            json=valid_payload(user_level="advanced"),
+        )
+
+    beginner_body = beginner_response.json()
+    advanced_body = advanced_response.json()
+
+    assert beginner_response.status_code == 200
+    assert advanced_response.status_code == 200
+    assert beginner_body["score"] == advanced_body["score"]
+    assert beginner_body["recommendation_meta"]["advice_conservativeness"] == "conservative"
+    assert advanced_body["recommendation_meta"]["advice_conservativeness"] == "performance_adjusted"
+    assert "取消强度" in beginner_body["advice"]["tomorrow"]["content"]
+    assert "Z1/Z2" in advanced_body["advice"]["tomorrow"]["content"]
+
+
+def test_safety_flags_override_advanced_profile(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        response = client.post(
+            "/api/recovery/analyze",
+            json=valid_payload(
+                user_level="advanced",
+                symptoms=["chest_pain", "pain_affects_walking"],
+            ),
+        )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["safety_flags"]
+    assert body["recommendation_meta"]["advice_conservativeness"] == "safety_first"
+    assert "暂停跑步" in body["advice"]["tomorrow"]["content"]
+
+
+def test_feedback_and_history_endpoints(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        analyze_response = client.post("/api/recovery/analyze", json=valid_payload())
+        recovery_id = analyze_response.json()["recovery_id"]
+
+        feedback_response = client.post(
+            f"/api/recovery/{recovery_id}/feedback",
+            json={
+                "helpfulness_rating": "helpful",
+                "next_day_status": "recovered",
+                "followed_advice": "partial",
+            },
+        )
+        history_response = client.get("/api/recovery/history?limit=7")
+
+    assert feedback_response.status_code == 200
+    assert feedback_response.json()["recovery_id"] == recovery_id
+    assert history_response.status_code == 200
+    assert history_response.json()[0]["recovery_id"] == recovery_id

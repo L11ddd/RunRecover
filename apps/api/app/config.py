@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # 在读取环境变量之前先加载 .env 文件。
@@ -14,34 +14,64 @@ from dotenv import find_dotenv, load_dotenv
 load_dotenv(find_dotenv(usecwd=True), override=False)
 
 
+def _csv_env(name: str, default: str) -> list[str]:
+    raw_value = os.getenv(name, default)
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
 @dataclass(frozen=True)
 class Settings:
-    database_url: str = os.getenv(
-        "RUNRECOVER_DATABASE_URL", "sqlite:///./data/runrecover.db"
+    app_env: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_ENV", "development")
+    )
+
+    database_url: str = field(
+        default_factory=lambda: os.getenv(
+            "RUNRECOVER_DATABASE_URL", "sqlite:///./data/runrecover.db"
+        )
+    )
+
+    cors_origins: list[str] = field(
+        default_factory=lambda: _csv_env(
+            "RUNRECOVER_CORS_ORIGINS",
+            "http://127.0.0.1:5173,http://localhost:5173",
+        )
     )
 
     # 控制使用哪个推荐引擎：
-    #   "template" → 纯规则模板（默认，无需 API key，适合演示）
-    #   "deepseek" → 调用 DeepSeek 大模型 API
-    llm_provider: str = os.getenv("RUNRECOVER_LLM_PROVIDER", "template")
-
-    # DeepSeek API key，在 https://platform.deepseek.com/api_keys 申请
-    llm_api_key: str = os.getenv("RUNRECOVER_LLM_API_KEY", "")
-
-    # API 地址。DeepSeek 默认是 https://api.deepseek.com
-    # 如果将来换成其他兼容 OpenAI 协议的模型（如通义千问、本地 Ollama），
-    # 只需修改这个环境变量，代码不用动。
-    llm_base_url: str = os.getenv(
-        "RUNRECOVER_LLM_BASE_URL", "https://api.deepseek.com"
+    #   "template"  → 纯规则模板（默认，无需 API key，适合演示）
+    #   "deepseek"  → 调用 DeepSeek 大模型 API
+    #   "openai"    → 直接调用 OpenAI 官方 API
+    #   "anthropic" / "claude" → 直接调用 Claude/Anthropic API
+    llm_provider: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_LLM_PROVIDER", "template")
     )
 
-    # 使用的模型名称。DeepSeek 常用：
-    #   deepseek-chat    → 通用对话模型，性价比高
-    #   deepseek-reasoner → 推理增强版，更贵但更准
-    llm_model: str = os.getenv("RUNRECOVER_LLM_MODEL", "deepseek-chat")
+    # LLM API key，用于 DeepSeek/OpenAI/Anthropic
+    llm_api_key: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_LLM_API_KEY", "")
+    )
+
+    # API 地址。默认由各 provider 自动选取：
+    #   deepseek:   https://api.deepseek.com
+    #   openai:     https://api.openai.com/v1
+    #   anthropic:  https://api.anthropic.com/v1
+    llm_base_url: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_LLM_BASE_URL", "")
+    )
+
+    # 使用的模型名称。默认由各 provider 自动选取：
+    #   deepseek:   deepseek-chat
+    #   openai:     gpt-3.5-turbo
+    #   anthropic:  claude-3.5-mini
+    llm_model: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_LLM_MODEL", "")
+    )
 
     # 单次 API 调用的超时秒数，防止网络慢时把整个请求卡住
-    llm_timeout_seconds: float = float(os.getenv("RUNRECOVER_LLM_TIMEOUT", "20"))
+    llm_timeout_seconds: float = field(
+        default_factory=lambda: float(os.getenv("RUNRECOVER_LLM_TIMEOUT", "20"))
+    )
 
 
 def get_settings() -> Settings:

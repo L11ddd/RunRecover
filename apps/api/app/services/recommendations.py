@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from app.schemas import (
+    AdviceConservativeness,
     AdviceItem,
     AnalyzeRecoveryRequest,
     RecoveryAdvice,
+    Reason,
     ScoreResult,
     TimelineItem,
 )
@@ -19,8 +21,13 @@ def build_template_recommendation(
     run_input: AnalyzeRecoveryRequest,
     score_result: ScoreResult,
     safety_flags: list[str],
+    reasons: list[Reason] | None = None,
 ) -> RecoveryAdvice:
-    conservative = score_result.score >= 61 or bool(safety_flags)
+    conservative = (
+        score_result.score >= 61
+        or bool(safety_flags)
+        or (run_input.user_level == "beginner" and score_result.score >= 31)
+    )
     high_load = score_result.score >= 81 or bool(safety_flags)
 
     summary = build_summary(run_input, score_result, safety_flags)
@@ -43,13 +50,88 @@ def build_template_recommendation(
     )
 
 
+def get_advice_conservativeness(
+    run_input: AnalyzeRecoveryRequest,
+    score_result: ScoreResult,
+    safety_flags: list[str],
+) -> AdviceConservativeness:
+    if safety_flags:
+        return "safety_first"
+    if run_input.user_level == "beginner":
+        return "conservative"
+    if run_input.user_level == "advanced":
+        return "performance_adjusted"
+    return "balanced"
+
+
+def validate_recommendation_content(
+    advice: RecoveryAdvice,
+    run_input: AnalyzeRecoveryRequest,
+    score_result: ScoreResult,
+    safety_flags: list[str],
+) -> tuple[bool, list[str]]:
+    issues: list[str] = []
+    joined = " ".join(
+        [
+            advice.summary,
+            advice.diet.content,
+            advice.hydration.content,
+            advice.sleep.content,
+            advice.relaxation.content,
+            advice.tomorrow.content,
+            " ".join(item.action for item in advice.timeline),
+        ]
+    )
+
+    unsafe_phrases = ["继续高强度", "坚持原计划", "正常冲量", "照常冲量", "按原计划强度"]
+    if safety_flags and any(phrase in joined for phrase in unsafe_phrases):
+        issues.append("safety_flags 场景中出现鼓励继续高刺激训练的表述")
+
+    conservative_terms = ["保守", "暂停", "避免", "降低", "降级", "休息", "观察"]
+    safety_text = f"{advice.summary} {advice.tomorrow.content}"
+    if safety_flags and not any(term in safety_text for term in conservative_terms):
+        issues.append("safety_flags 场景的 summary/tomorrow 未体现保守处理")
+
+    if "pain_affects_walking" in run_input.symptoms:
+        risky_tomorrow_terms = ["轻松跑", "恢复跑", "跑步训练", "继续跑", "推荐跑步", "跳跃", "强拉伸"]
+        if any(term in advice.tomorrow.content for term in risky_tomorrow_terms):
+            issues.append("疼痛影响走路时，明日建议不得推荐跑步、跳跃或强拉伸")
+
+    hard_plan = (run_input.tomorrow_plan or "unknown") in {"intensity", "long", "race"}
+    if run_input.sleep_hours < 5 and hard_plan:
+        if not any(term in advice.tomorrow.content for term in ["取消", "降低", "降级", "避免", "休息"]):
+            issues.append("睡眠严重不足且明日高刺激计划时，明日建议必须取消或明显降级")
+
+    if score_result.score >= 81 and hard_plan:
+        if not any(term in advice.tomorrow.content for term in ["不安排", "避免", "取消", "降级", "休息", "暂停"]):
+            issues.append("高负荷提醒且明日高刺激计划时，明日建议必须偏保守")
+
+    return len(issues) == 0, issues
+
+
 def build_summary(
     run_input: AnalyzeRecoveryRequest,
     score_result: ScoreResult,
     safety_flags: list[str],
 ) -> str:
     if safety_flags:
-        return "当前存在需要保守处理的身体信号，建议先把安全和恢复放在训练目标前面。"
+        return "当前存在需要保守处理的风险信号，建议先把安全和恢复放在训练目标前面。"
+    if run_input.user_level == "beginner":
+        if score_result.score >= 61:
+            return "这次恢复压力偏高，先用更保守的恢复安排把身体状态稳住，不急着追训练量。"
+        if score_result.score >= 31:
+            return "这次恢复压力中等，建议用简单、稳妥的补水、进食和睡眠把基础恢复做好。"
+        return "这次恢复压力较低，按基础恢复流程做即可，明日训练继续以轻松和稳定为主。"
+    if run_input.user_level == "advanced":
+        if score_result.score >= 81:
+            return "本次训练刺激和恢复压力都偏高，明日应把质量课降级或移除，优先吸收训练。"
+        if score_result.score >= 61:
+            return "本次恢复压力较高，建议通过降载、补能和睡眠把训练刺激转化为适应。"
+        if score_result.score >= 31:
+            return "本次恢复压力中等，可保留低强度活动，但避免在疲劳未消退前叠加质量课。"
+        return "本次恢复压力较低，可按计划推进，但仍以晨起状态作为明日训练校准依据。"
+    if run_input.past_48h_training in {"hard_training", "race_or_very_hard"} and score_result.score >= 61:
+        return "今天恢复压力较高，且近期已有明显训练负荷，明日安排应优先避免连续叠加强刺激。"
     if score_result.score >= 81:
         return "今天恢复压力很高，主要与较高运动负荷、RPE 或身体状态有关，明日应避免连续高强度。"
     if score_result.score >= 61:
@@ -75,6 +157,10 @@ def build_diet_advice(run_input: AnalyzeRecoveryRequest, high_load: bool) -> Adv
 
     if high_load:
         content += " 今天负荷偏高，不建议跑后长时间空腹。"
+    elif run_input.user_level == "beginner":
+        content += " 先把这一餐吃完整，比精确计算营养更重要。"
+    elif run_input.user_level == "advanced":
+        content += " 可把这餐视为补糖原和蛋白质摄入窗口，帮助后续训练恢复。"
 
     return AdviceItem(title="饮食建议", content=content)
 
@@ -97,6 +183,8 @@ def build_sleep_advice(run_input: AnalyzeRecoveryRequest, conservative: bool) ->
 
     if conservative and run_input.sleep_hours < 7:
         content += " 睡眠是今天最值得补上的恢复资源。"
+    elif run_input.user_level == "advanced" and run_input.sleep_hours >= 7:
+        content += " 若明日仍有训练，可用晨起精神、静息状态和腿部反馈再做负荷微调。"
 
     return AdviceItem(title="睡眠建议", content=content)
 
@@ -114,16 +202,69 @@ def build_tomorrow_advice(
     score_result: ScoreResult,
     safety_flags: list[str],
 ) -> AdviceItem:
+    hard_plan = (run_input.tomorrow_plan or "unknown") in {"intensity", "long", "race"}
+    cross_plan = run_input.tomorrow_plan == "strength_cross"
+    user_level = run_input.user_level
+
     if safety_flags:
         content = "明日先暂停跑步或下肢高强度训练，观察不适变化；如果症状持续或影响日常活动，请咨询专业人士。"
+    elif user_level == "beginner":
+        if score_result.score >= 81:
+            content = "明日建议休息或散步，不安排跑步训练；等疲劳和酸痛明显下降后，再从短时间轻松跑开始。"
+        elif score_result.score >= 61:
+            if hard_plan or cross_plan:
+                content = "明日建议取消强度、长距离或下肢力量安排，改为休息、散步或很轻松的活动。"
+            else:
+                content = "明日建议休息或很轻松的活动，不用为了完成计划硬撑。"
+        elif score_result.score >= 31:
+            if hard_plan:
+                content = "明日先不要做强度或长距离，建议降级为短时间轻松跑、走跑结合或休息。"
+            else:
+                content = "明日可做轻松活动，但如果醒来仍累或酸痛上升，就直接休息。"
+        else:
+            content = "明日可安排轻松跑或恢复跑，过程中能顺畅说话即可，不追配速。"
+    elif user_level == "advanced":
+        if score_result.score >= 81:
+            if hard_plan:
+                content = "明日建议取消原定质量课或长距离，降级为休息、散步、灵活性或极轻松有氧，不做间歇、节奏跑或比赛刺激。"
+            else:
+                content = "明日建议以休息、灵活性或极轻松有氧为主，不安排质量课或长距离，把重点放在吸收训练。"
+        elif score_result.score >= 61:
+            if hard_plan:
+                content = "明日原计划建议明显降级：取消质量段，改为短时 Z1/Z2 有氧、技术放松或休息，并保留随时停止的空间。"
+            elif cross_plan:
+                content = "明日交叉或力量训练建议降低下肢负荷，保留核心、上肢或灵活性内容，不做大重量腿部刺激。"
+            else:
+                content = "明日可保留低强度恢复性训练，但训练目标从推进表现改为降载和恢复。"
+        elif score_result.score >= 31:
+            if hard_plan:
+                content = "明日可先用热身反馈决定是否保留主课；若 RPE、酸痛或步态异常，主动降级为轻松跑或休息。"
+            else:
+                content = "明日可安排轻松有氧或技术放松，避免连续叠加高神经肌肉刺激。"
+        else:
+            content = "明日可按计划推进，但仍以热身状态为准；若疲劳上升，主动降低强度。"
     elif score_result.score >= 81:
-        content = "明日建议休息、散步或非常轻松的活动，不安排间歇、节奏跑或长距离。"
+        if hard_plan:
+            content = "明日建议取消原定高刺激训练，改为休息、散步或非常轻松的活动，不安排间歇、节奏跑、比赛或长距离。"
+        else:
+            content = "明日建议休息、散步或非常轻松的活动，不安排间歇、节奏跑或长距离。"
     elif score_result.score >= 61:
-        content = "明日建议休息或低强度活动。如果原计划是强度课或长距离，建议取消或降级为轻松跑。"
+        if hard_plan:
+            content = "明日建议休息或低强度活动；原计划的强度跑、比赛或长距离建议取消，或明显降级为短时间轻松活动。"
+        elif cross_plan:
+            content = "明日力量或交叉训练建议降低下肢刺激，优先选择轻量核心、上肢或灵活性内容。"
+        else:
+            content = "明日建议休息或低强度活动，训练中保留随时降级的空间。"
     elif score_result.score >= 31:
-        content = "明日可根据状态安排轻松活动，暂时避免连续高强度。"
+        if hard_plan:
+            content = "明日可先按状态评估原计划，但不建议硬顶强度；热身后若疲劳或酸痛明显，应降级为轻松跑或休息。"
+        else:
+            content = "明日可根据状态安排轻松活动，暂时避免连续高强度。"
     else:
-        content = "明日可按原计划进行轻松训练；如果醒来仍疲劳，则主动降低强度。"
+        if hard_plan:
+            content = "明日可按计划准备，但仍建议以热身状态为准；若醒来疲劳或酸痛上升，主动降低强度。"
+        else:
+            content = "明日可按原计划进行轻松训练；如果醒来仍疲劳，则主动降低强度。"
 
     return AdviceItem(title="明日安排", content=content)
 
