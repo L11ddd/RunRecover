@@ -31,6 +31,14 @@ class Settings:
         )
     )
 
+    api_host: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_API_HOST", "127.0.0.1")
+    )
+
+    api_port: int = field(
+        default_factory=lambda: int(os.getenv("RUNRECOVER_API_PORT", "8000"))
+    )
+
     cors_origins: list[str] = field(
         default_factory=lambda: _csv_env(
             "RUNRECOVER_CORS_ORIGINS",
@@ -71,6 +79,35 @@ class Settings:
     # 单次 API 调用的超时秒数，防止网络慢时把整个请求卡住
     llm_timeout_seconds: float = field(
         default_factory=lambda: float(os.getenv("RUNRECOVER_LLM_TIMEOUT", "20"))
+    )
+
+    screenshot_llm_provider: str = field(
+        default_factory=lambda: os.getenv("RUNRECOVER_SCREENSHOT_LLM_PROVIDER", "openai")
+    )
+
+    screenshot_llm_model: str = field(
+        default_factory=lambda: os.getenv(
+            "RUNRECOVER_SCREENSHOT_LLM_MODEL",
+            os.getenv("RUNRECOVER_LLM_MODEL", "gpt-4o-mini"),
+        )
+    )
+
+    screenshot_llm_api_key: str = field(
+        default_factory=lambda: os.getenv(
+            "RUNRECOVER_SCREENSHOT_LLM_API_KEY",
+            os.getenv("RUNRECOVER_LLM_API_KEY", ""),
+        )
+    )
+
+    screenshot_llm_base_url: str = field(
+        default_factory=lambda: os.getenv(
+            "RUNRECOVER_SCREENSHOT_LLM_BASE_URL",
+            os.getenv("RUNRECOVER_LLM_BASE_URL", "https://api.openai.com/v1"),
+        )
+    )
+
+    screenshot_max_upload_mb: float = field(
+        default_factory=lambda: float(os.getenv("RUNRECOVER_SCREENSHOT_MAX_MB", "5"))
     )
 
 

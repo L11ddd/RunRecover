@@ -44,4 +44,5 @@ data/*.db
 # 本地验收产物 / 临时备份
 # ──────────────────────────────────────────────
 artifacts/
+outputs/
 apps/web/src/styles 2.css

@@ -2,21 +2,30 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   CalendarClock,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
   Clock3,
   Droplets,
+  FileImage,
   HeartPulse,
+  History,
+  Keyboard,
+  ListChecks,
   Loader2,
   Moon,
   RotateCcw,
   ShieldAlert,
+  SlidersHorizontal,
   Utensils,
   Zap,
   type LucideIcon,
 } from "lucide-react";
 
-import { analyzeRecovery, fetchRecoveryHistory, submitFeedback } from "./lib/api";
+import { analyzeRecovery, extractRunScreenshot, fetchRecoveryHistory, submitFeedback } from "./lib/api";
 import { demoCases } from "./lib/demoCases";
 import type {
   AdviceItem,
@@ -27,6 +36,7 @@ import type {
   FeedbackRequest,
   Past48hTraining,
   RecoveryHistoryItem,
+  RunScreenshotExtractResponse,
   RunTimePeriod,
   RunTypeMain,
   RunTypeModifier,
@@ -168,9 +178,190 @@ const defaultFeedback: FeedbackRequest = {
   followed_advice: "partial",
 };
 
+const screenshotFieldLabels: Record<string, string> = {
+  distance_km: "距离",
+  duration_min: "时长",
+  pace: "配速",
+  run_type_guess: "跑步类型",
+  run_time_period_guess: "跑步时间",
+  avg_hr: "平均心率",
+  max_hr: "最大心率",
+  calories: "热量",
+  elevation_gain: "爬升",
+  source_app_guess: "来源 App",
+};
+
+type ScreenshotStatus = "idle" | "extracting" | "success" | "error";
+const isScreenshotUploadEnabled = import.meta.env.VITE_ENABLE_SCREENSHOT_UPLOAD === "true";
+
+type AppView = "input" | "analyzing" | "result";
+type InputStepId = "method" | "load" | "body" | "context" | "confirm";
+type ResultTabId = "summary" | "plan" | "details";
+
+const inputSteps: Array<{
+  id: InputStepId;
+  label: string;
+  title: string;
+  icon: LucideIcon;
+}> = [
+  { id: "method", label: "输入方式", title: "选择输入方式", icon: Keyboard },
+  { id: "load", label: "跑步负荷", title: "跑步负荷", icon: Activity },
+  { id: "body", label: "身体状态", title: "身体状态", icon: HeartPulse },
+  { id: "context", label: "恢复约束", title: "恢复约束", icon: CalendarClock },
+  { id: "confirm", label: "确认分析", title: "确认分析", icon: ListChecks },
+];
+
+const resultTabs: Array<{
+  id: ResultTabId;
+  label: string;
+  icon: LucideIcon;
+}> = [
+  { id: "summary", label: "结论", icon: BarChart3 },
+  { id: "plan", label: "恢复计划", icon: CalendarClock },
+  { id: "details", label: "原因详情", icon: SlidersHorizontal },
+];
+
+type EditableAnalyzeRecoveryRequest = Omit<
+  AnalyzeRecoveryRequest,
+  "distance_km" | "duration_min" | "sleep_hours" | "avg_hr" | "max_hr"
+> & {
+  distance_km: number | null;
+  duration_min: number | null;
+  sleep_hours: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+};
+
+function toEditableForm(payload: AnalyzeRecoveryRequest): EditableAnalyzeRecoveryRequest {
+  return {
+    ...payload,
+    avg_hr: payload.avg_hr ?? null,
+    max_hr: payload.max_hr ?? null,
+  };
+}
+
+function buildAnalyzePayload(
+  form: EditableAnalyzeRecoveryRequest,
+): AnalyzeRecoveryRequest | null {
+  if (form.distance_km === null || form.duration_min === null || form.sleep_hours === null) {
+    return null;
+  }
+
+  return {
+    ...form,
+    distance_km: form.distance_km,
+    duration_min: form.duration_min,
+    sleep_hours: form.sleep_hours,
+    avg_hr: form.avg_hr,
+    max_hr: form.max_hr,
+  };
+}
+
+function isRunTypeMain(value: string | null): value is RunTypeMain {
+  return runTypeOptions.some((option) => option.value === value);
+}
+
+function isRunTimePeriod(value: string | null): value is RunTimePeriod {
+  return runTimeOptions.some((option) => option.value === value);
+}
+
+function normalizeRunTypeGuess(value: string | null): RunTypeMain | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+  if (isRunTypeMain(normalized)) {
+    return normalized;
+  }
+
+  const aliases: Record<string, RunTypeMain> = {
+    recovery_run: "recovery",
+    easy_run: "easy",
+    steady_run: "steady",
+    tempo_run: "tempo",
+    interval_run: "interval",
+    intervals: "interval",
+    long_run: "long",
+    race_run: "race",
+    morning_run: "easy",
+    night_run: "easy",
+  };
+  return aliases[normalized] ?? null;
+}
+
+function normalizeRunTimeGuess(value: string | null): RunTimePeriod | null {
+  if (!value) {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+  if (isRunTimePeriod(normalized)) {
+    return normalized;
+  }
+  const aliases: Record<string, RunTimePeriod> = {
+    dawn: "morning",
+    am: "morning",
+    morning_run: "morning",
+    lunch: "noon",
+    afternoon: "evening",
+    dusk: "evening",
+    pm: "evening",
+    evening_run: "evening",
+    night_run: "night",
+  };
+  return aliases[normalized] ?? null;
+}
+
+function normalizeApiError(message: string) {
+  try {
+    const parsed = JSON.parse(message);
+    if (typeof parsed.detail === "string") {
+      return parsed.detail;
+    }
+  } catch {
+    // Keep original text below.
+  }
+  return message || "未能可靠识别截图内容，请手动填写跑步数据。";
+}
+
+function formatScreenshotValue(field: string, value: string | number | null) {
+  if (value === null || value === "") {
+    return "未识别";
+  }
+  if (typeof value === "number") {
+    if (field === "distance_km") {
+      return `${formatCompactNumber(value)} km`;
+    }
+    if (field === "duration_min") {
+      return `${formatCompactNumber(value)} min`;
+    }
+    if (field === "avg_hr" || field === "max_hr") {
+      return `${Math.round(value)} bpm`;
+    }
+    if (field === "calories") {
+      return `${Math.round(value)} kcal`;
+    }
+    if (field === "elevation_gain") {
+      return `${Math.round(value)} m`;
+    }
+    return formatCompactNumber(value);
+  }
+  if (field === "run_type_guess") {
+    return runTypeOptions.find((option) => option.value === normalizeRunTypeGuess(value))?.label ?? value;
+  }
+  if (field === "run_time_period_guess") {
+    return runTimeOptions.find((option) => option.value === normalizeRunTimeGuess(value))?.label ?? value;
+  }
+  return value;
+}
+
 function App() {
-  const [form, setForm] = useState<AnalyzeRecoveryRequest>(defaultPayload);
+  const [form, setForm] = useState<EditableAnalyzeRecoveryRequest>(() =>
+    toEditableForm(defaultPayload),
+  );
   const [result, setResult] = useState<AnalyzeRecoveryResponse | null>(null);
+  const [appView, setAppView] = useState<AppView>("input");
+  const [inputStep, setInputStep] = useState<InputStepId>("method");
+  const [resultTab, setResultTab] = useState<ResultTabId>("summary");
   const [activeCaseId, setActiveCaseId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -180,6 +371,14 @@ function App() {
   const [feedbackStatus, setFeedbackStatus] = useState<"idle" | "submitting" | "sent" | "error">(
     "idle",
   );
+  const [screenshotStatus, setScreenshotStatus] = useState<ScreenshotStatus>("idle");
+  const [screenshotPreviewUrl, setScreenshotPreviewUrl] = useState<string | null>(null);
+  const [screenshotResult, setScreenshotResult] = useState<RunScreenshotExtractResponse | null>(
+    null,
+  );
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+  const [screenshotTouchedFields, setScreenshotTouchedFields] = useState<string[]>([]);
+  const [isScreenshotConfirmed, setIsScreenshotConfirmed] = useState(false);
 
   const visibleModifierOptions = useMemo(
     () =>
@@ -188,6 +387,8 @@ function App() {
       ),
     [form.run_type_main],
   );
+  const currentStepIndex = inputSteps.findIndex((step) => step.id === inputStep);
+  const activeInputStep = inputSteps[currentStepIndex] ?? inputSteps[0];
 
   const loadHistory = async () => {
     try {
@@ -203,11 +404,20 @@ function App() {
     void loadHistory();
   }, []);
 
-  const updateField = <K extends keyof AnalyzeRecoveryRequest>(
+  useEffect(() => {
+    return () => {
+      if (screenshotPreviewUrl) {
+        URL.revokeObjectURL(screenshotPreviewUrl);
+      }
+    };
+  }, [screenshotPreviewUrl]);
+
+  const updateField = <K extends keyof EditableAnalyzeRecoveryRequest>(
     field: K,
-    value: AnalyzeRecoveryRequest[K],
+    value: EditableAnalyzeRecoveryRequest[K],
   ) => {
     setForm((current) => ({ ...current, [field]: value }));
+    setScreenshotTouchedFields((current) => current.filter((item) => item !== field));
     setActiveCaseId(null);
   };
 
@@ -221,6 +431,7 @@ function App() {
         return !option?.visibleFor || option.visibleFor.includes(value);
       }),
     }));
+    setScreenshotTouchedFields((current) => current.filter((item) => item !== "run_type_main"));
     setActiveCaseId(null);
   };
 
@@ -234,17 +445,198 @@ function App() {
     setActiveCaseId(null);
   };
 
+  const resetInput = () => {
+    if (screenshotPreviewUrl) {
+      URL.revokeObjectURL(screenshotPreviewUrl);
+    }
+    setForm(toEditableForm(defaultPayload));
+    setResult(null);
+    setError(null);
+    setActiveCaseId(null);
+    setScreenshotPreviewUrl(null);
+    setScreenshotResult(null);
+    setScreenshotStatus("idle");
+    setScreenshotError(null);
+    setScreenshotTouchedFields([]);
+    setIsScreenshotConfirmed(false);
+    setFeedbackForm(defaultFeedback);
+    setFeedbackStatus("idle");
+    setInputStep("method");
+    setResultTab("summary");
+    setAppView("input");
+  };
+
+  const validateStep = (step: InputStepId) => {
+    if (step === "load") {
+      if (form.distance_km === null || form.distance_km <= 0) {
+        return "请填写有效的跑步距离。";
+      }
+      if (form.duration_min === null || form.duration_min <= 0) {
+        return "请填写有效的跑步时长。";
+      }
+    }
+
+    if (step === "body") {
+      if (form.sleep_hours === null || form.sleep_hours < 0) {
+        return "请填写有效的睡眠时间。";
+      }
+      if (form.avg_hr !== null && form.avg_hr <= 0) {
+        return "平均心率需要大于 0，或留空。";
+      }
+      if (form.max_hr !== null && form.max_hr <= 0) {
+        return "最大心率需要大于 0，或留空。";
+      }
+    }
+
+    if (step === "confirm") {
+      if (!buildAnalyzePayload(form)) {
+        return "请先填写距离、时长和睡眠时间。";
+      }
+    }
+
+    return null;
+  };
+
+  const goToInputStep = (step: InputStepId) => {
+    const nextIndex = inputSteps.findIndex((item) => item.id === step);
+    if (nextIndex <= currentStepIndex) {
+      setInputStep(step);
+      setError(null);
+    }
+  };
+
+  const goToNextInputStep = () => {
+    const validationMessage = validateStep(inputStep);
+    if (validationMessage) {
+      setError(validationMessage);
+      return;
+    }
+    setError(null);
+
+    if (currentStepIndex >= inputSteps.length - 1) {
+      const payload = buildAnalyzePayload(form);
+      if (payload) {
+        void runAnalyze(payload);
+      }
+      return;
+    }
+
+    setInputStep(inputSteps[currentStepIndex + 1].id);
+  };
+
+  const goToPreviousInputStep = () => {
+    if (currentStepIndex === 0) {
+      return;
+    }
+    setInputStep(inputSteps[currentStepIndex - 1].id);
+    setError(null);
+  };
+
+  const applyScreenshotResult = (extraction: RunScreenshotExtractResponse) => {
+    const recognizedFields: string[] = [];
+    const runTypeGuess = normalizeRunTypeGuess(extraction.run_type_guess);
+    const runTimeGuess = normalizeRunTimeGuess(extraction.run_time_period_guess);
+
+    setForm((current) => {
+      const next = { ...current };
+
+      if (extraction.distance_km !== null) {
+        next.distance_km = extraction.distance_km;
+        recognizedFields.push("distance_km");
+      }
+      if (extraction.duration_min !== null) {
+        next.duration_min = extraction.duration_min;
+        recognizedFields.push("duration_min");
+      }
+      if (runTypeGuess) {
+        next.run_type_main = runTypeGuess;
+        next.run_type = legacyRunTypes.has(runTypeGuess)
+          ? (runTypeGuess as AnalyzeRecoveryRequest["run_type"])
+          : null;
+        next.run_type_modifier = current.run_type_modifier.filter((modifier) => {
+          const option = runTypeModifierOptions.find((item) => item.value === modifier);
+          return !option?.visibleFor || option.visibleFor.includes(runTypeGuess);
+        });
+        recognizedFields.push("run_type_main");
+      }
+      if (runTimeGuess) {
+        next.run_time_period = runTimeGuess;
+        recognizedFields.push("run_time_period");
+      }
+      if (extraction.avg_hr !== null) {
+        next.avg_hr = extraction.avg_hr;
+        recognizedFields.push("avg_hr");
+      }
+      if (extraction.max_hr !== null) {
+        next.max_hr = extraction.max_hr;
+        recognizedFields.push("max_hr");
+      }
+
+      return next;
+    });
+
+    setScreenshotTouchedFields(recognizedFields);
+    setIsScreenshotConfirmed(false);
+    setActiveCaseId(null);
+  };
+
+  const handleScreenshotFile = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+      setScreenshotStatus("error");
+      setScreenshotError("仅支持 png、jpg、jpeg、webp 图片。");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setScreenshotStatus("error");
+      setScreenshotError("图片过大，最大支持 5MB。");
+      return;
+    }
+
+    if (screenshotPreviewUrl) {
+      URL.revokeObjectURL(screenshotPreviewUrl);
+    }
+    setScreenshotPreviewUrl(URL.createObjectURL(file));
+    setScreenshotStatus("extracting");
+    setScreenshotError(null);
+    setScreenshotResult(null);
+    setScreenshotTouchedFields([]);
+    setIsScreenshotConfirmed(false);
+
+    try {
+      const extraction = await extractRunScreenshot(file);
+      setScreenshotResult(extraction);
+      applyScreenshotResult(extraction);
+      setScreenshotStatus("success");
+    } catch (requestError) {
+      setScreenshotStatus("error");
+      setScreenshotError(
+        requestError instanceof Error
+          ? normalizeApiError(requestError.message)
+          : "未能可靠识别截图内容，请手动填写跑步数据。",
+      );
+    }
+  };
+
   const runAnalyze = async (payload: AnalyzeRecoveryRequest) => {
     setIsLoading(true);
     setError(null);
+    setAppView("analyzing");
     try {
       const response = await analyzeRecovery(payload);
       setResult(response);
+      setResultTab("summary");
+      setAppView("result");
       setFeedbackForm(defaultFeedback);
       setFeedbackStatus("idle");
       void loadHistory();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "分析请求失败");
+      setInputStep("confirm");
+      setAppView("input");
     } finally {
       setIsLoading(false);
     }
@@ -252,12 +644,13 @@ function App() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void runAnalyze(form);
+    goToNextInputStep();
   };
 
   const handleDemoCase = (demoCase: DemoCase) => {
-    setForm(demoCase.payload);
+    setForm(toEditableForm(demoCase.payload));
     setActiveCaseId(demoCase.id);
+    setInputStep("confirm");
     void runAnalyze(demoCase.payload);
   };
 
@@ -284,8 +677,25 @@ function App() {
     }
   };
 
+  const handleModifyInput = () => {
+    setAppView("input");
+    setInputStep("load");
+    setError(null);
+  };
+
+  const handleReanalyze = () => {
+    const payload = buildAnalyzePayload(form);
+    if (!payload) {
+      setError("请先填写距离、时长和睡眠时间。");
+      setAppView("input");
+      setInputStep("confirm");
+      return;
+    }
+    void runAnalyze(payload);
+  };
+
   const pace = useMemo(() => {
-    if (!form.distance_km) {
+    if (!form.distance_km || !form.duration_min) {
       return "0:00";
     }
     const totalSeconds = Math.round((form.duration_min * 60) / form.distance_km);
@@ -297,7 +707,11 @@ function App() {
   const headerMetrics: HeaderMetricProps[] = [
     { label: "配速", value: `${pace}/km`, icon: Clock3 },
     { label: "RPE", value: `${form.rpe}/10`, icon: Zap },
-    { label: "睡眠", value: `${formatCompactNumber(form.sleep_hours)}h`, icon: Moon },
+    {
+      label: "睡眠",
+      value: form.sleep_hours === null ? "未填" : `${formatCompactNumber(form.sleep_hours)}h`,
+      icon: Moon,
+    },
     {
       label: "明日",
       value: tomorrowOptions.find((option) => option.value === form.tomorrow_plan)?.label ?? "未确定",
@@ -305,47 +719,67 @@ function App() {
     },
   ];
 
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-block">
-          <p className="eyebrow">Post-run recovery intelligence</p>
-          <h1>RunRecover</h1>
-          <p>AI 跑后恢复助手 · 跑后 24 小时恢复决策</p>
-        </div>
-        <div className="topbar-metrics" aria-label="当前输入摘要">
-          {headerMetrics.map((metric) => (
-            <HeaderMetric
-              key={metric.label}
-              label={metric.label}
-              value={metric.value}
-              icon={metric.icon}
+  const inputStepContent = (() => {
+    switch (inputStep) {
+      case "method":
+        return (
+          <div className="wizard-step">
+            <div className="method-grid">
+              <MethodCard
+                icon={Keyboard}
+                title="手动填写"
+                description="逐步补全跑步负荷、身体状态和恢复约束。"
+                actionLabel="开始填写"
+                onClick={() => {
+                  setError(null);
+                  setInputStep("load");
+                }}
+              />
+              <MethodCard
+                icon={FileImage}
+                title="上传运动截图"
+                description={
+                  isScreenshotUploadEnabled
+                    ? "识别截图中的距离、时长和心率，再回填表单。"
+                    : "当前大模型不支持图片识别，入口暂时预留。"
+                }
+                actionLabel={isScreenshotUploadEnabled ? "下方上传" : "暂未启用"}
+                disabled={!isScreenshotUploadEnabled}
+                passive={isScreenshotUploadEnabled}
+              />
+              <MethodCard
+                icon={CheckCircle2}
+                title="使用演示案例"
+                description="点击下方案例可直接填充表单并开始分析。"
+                actionLabel="下方选择"
+                passive
+              />
+            </div>
+
+            {isScreenshotUploadEnabled ? (
+              <ScreenshotUploadPanel
+                status={screenshotStatus}
+                previewUrl={screenshotPreviewUrl}
+                result={screenshotResult}
+                error={screenshotError}
+                touchedFields={screenshotTouchedFields}
+                confirmed={isScreenshotConfirmed}
+                onFileSelect={handleScreenshotFile}
+                onConfirm={() => setIsScreenshotConfirmed(true)}
+              />
+            ) : null}
+
+            <DemoCaseBar
+              cases={demoCases}
+              activeCaseId={activeCaseId}
+              onSelect={handleDemoCase}
+              disabled={isLoading}
             />
-          ))}
-        </div>
-      </header>
-
-      <main className="workspace">
-        <section className="input-panel" aria-labelledby="input-title">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Input</p>
-              <h2 id="input-title">本次跑步</h2>
-            </div>
-            <div className="pace-badge">
-              <Clock3 size={16} aria-hidden="true" />
-              <span>{pace}/km</span>
-            </div>
           </div>
-
-          <DemoCaseBar
-            cases={demoCases}
-            activeCaseId={activeCaseId}
-            onSelect={handleDemoCase}
-            disabled={isLoading}
-          />
-
-          <form className="input-form" onSubmit={handleSubmit}>
+        );
+      case "load":
+        return (
+          <div className="wizard-step">
             <FormSection eyebrow="Load" title="跑步负荷" icon={Activity}>
               <div className="field-grid two-columns">
                 <NumberField
@@ -354,7 +788,8 @@ function App() {
                   max={60}
                   step={0.1}
                   value={form.distance_km}
-                  onChange={(value) => updateField("distance_km", value ?? 0.5)}
+                  source={screenshotTouchedFields.includes("distance_km") ? "已从截图识别，可修改" : undefined}
+                  onChange={(value) => updateField("distance_km", value)}
                 />
                 <NumberField
                   label="时长 min"
@@ -362,7 +797,8 @@ function App() {
                   max={360}
                   step={1}
                   value={form.duration_min}
-                  onChange={(value) => updateField("duration_min", value ?? 5)}
+                  source={screenshotTouchedFields.includes("duration_min") ? "已从截图识别，可修改" : undefined}
+                  onChange={(value) => updateField("duration_min", value)}
                 />
               </div>
 
@@ -371,12 +807,14 @@ function App() {
                   label="跑步类型"
                   value={form.run_type_main}
                   options={runTypeOptions}
+                  source={screenshotTouchedFields.includes("run_type_main") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateRunTypeMain(value as RunTypeMain)}
                 />
                 <SelectField
                   label="跑步时间"
                   value={form.run_time_period}
                   options={runTimeOptions}
+                  source={screenshotTouchedFields.includes("run_time_period") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("run_time_period", value as RunTimePeriod)}
                 />
               </div>
@@ -387,7 +825,11 @@ function App() {
                 onToggle={toggleModifier}
               />
             </FormSection>
-
+          </div>
+        );
+      case "body":
+        return (
+          <div className="wizard-step">
             <FormSection eyebrow="Body" title="身体状态" icon={HeartPulse}>
               <RpeSlider value={form.rpe} onChange={(value) => updateField("rpe", value)} />
 
@@ -398,7 +840,7 @@ function App() {
                   max={14}
                   step={0.1}
                   value={form.sleep_hours}
-                  onChange={(value) => updateField("sleep_hours", value ?? 0)}
+                  onChange={(value) => updateField("sleep_hours", value)}
                 />
                 <RangeField
                   label="疲劳"
@@ -420,8 +862,9 @@ function App() {
                   min={40}
                   max={230}
                   step={1}
-                  value={form.avg_hr ?? ""}
+                  value={form.avg_hr}
                   optional
+                  source={screenshotTouchedFields.includes("avg_hr") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("avg_hr", value)}
                 />
                 <NumberField
@@ -429,13 +872,18 @@ function App() {
                   min={40}
                   max={230}
                   step={1}
-                  value={form.max_hr ?? ""}
+                  value={form.max_hr}
                   optional
+                  source={screenshotTouchedFields.includes("max_hr") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("max_hr", value)}
                 />
               </div>
             </FormSection>
-
+          </div>
+        );
+      case "context":
+        return (
+          <div className="wizard-step">
             <FormSection eyebrow="Context" title="恢复约束" icon={CalendarClock}>
               <UserLevelField
                 value={form.user_level}
@@ -482,52 +930,147 @@ function App() {
                 </div>
               </fieldset>
             </FormSection>
-
-            {error ? (
-              <div className="error-banner" role="alert">
-                <AlertTriangle size={18} aria-hidden="true" />
-                <span>后端请求失败：{error}</span>
-              </div>
-            ) : null}
-
-            <div className="form-actions">
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={() => {
-                  setForm(defaultPayload);
-                  setResult(null);
-                  setError(null);
-                  setActiveCaseId(null);
-                }}
-              >
-                <RotateCcw size={18} aria-hidden="true" />
-                重置
-              </button>
-              <button className="primary-button" type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <Loader2 className="spin" size={18} aria-hidden="true" />
-                ) : (
-                  <Zap size={18} aria-hidden="true" />
-                )}
-                开始分析
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="result-panel" aria-labelledby="result-title">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">Output</p>
-              <h2 id="result-title">恢复结果</h2>
-            </div>
-            {result ? <span className="record-id">#{result.recovery_id}</span> : null}
           </div>
+        );
+      case "confirm":
+        return (
+          <div className="wizard-step">
+            <FormSection eyebrow="Review" title="输入摘要" icon={ClipboardList}>
+              <InputSummary form={form} pace={pace} />
+            </FormSection>
+          </div>
+        );
+      default:
+        return null;
+    }
+  })();
+  const ActiveStepIcon = activeInputStep.icon;
 
-          {result ? (
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <div className="brand-block">
+          <p className="eyebrow">Post-run recovery intelligence</p>
+          <h1>RunRecover</h1>
+          <p>AI 跑后恢复助手 · 跑后 24 小时恢复决策</p>
+        </div>
+        <div className="topbar-metrics" aria-label="当前输入摘要">
+          {headerMetrics.map((metric) => (
+            <HeaderMetric
+              key={metric.label}
+              label={metric.label}
+              value={metric.value}
+              icon={metric.icon}
+            />
+          ))}
+        </div>
+      </header>
+
+      <main className={appView === "result" ? "workspace result-workspace" : "workspace"}>
+        {appView === "input" ? (
+          <section className="input-panel wizard-panel" aria-labelledby="input-title">
+            <div className="section-heading wizard-heading">
+              <div className="wizard-title-block">
+                <div className="form-section-icon">
+                  <ActiveStepIcon size={18} aria-hidden="true" />
+                </div>
+                <div>
+                  <p className="eyebrow">
+                    Step {currentStepIndex + 1} / {inputSteps.length}
+                  </p>
+                  <h2 id="input-title">{activeInputStep.title}</h2>
+                </div>
+              </div>
+              <div className="pace-badge">
+                <Clock3 size={16} aria-hidden="true" />
+                <span>{pace}/km</span>
+              </div>
+            </div>
+
+            <InputStepper
+              steps={inputSteps}
+              currentStep={inputStep}
+              currentIndex={currentStepIndex}
+              onSelect={goToInputStep}
+            />
+
+            <form className="input-form" onSubmit={handleSubmit}>
+              {inputStepContent}
+
+              {error ? (
+                <div className="error-banner" role="alert">
+                  <AlertTriangle size={18} aria-hidden="true" />
+                  <span>{error}</span>
+                </div>
+              ) : null}
+
+              <div className="wizard-actions">
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={goToPreviousInputStep}
+                  disabled={currentStepIndex === 0}
+                >
+                  <ChevronLeft size={18} aria-hidden="true" />
+                  上一步
+                </button>
+                <button className="secondary-button" type="button" onClick={resetInput}>
+                  <RotateCcw size={18} aria-hidden="true" />
+                  重置
+                </button>
+                <button className="primary-button" type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <Loader2 className="spin" size={18} aria-hidden="true" />
+                  ) : inputStep === "confirm" ? (
+                    <Zap size={18} aria-hidden="true" />
+                  ) : (
+                    <ChevronRight size={18} aria-hidden="true" />
+                  )}
+                  {inputStep === "confirm" ? "开始分析" : "下一步"}
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
+
+        {appView === "analyzing" ? (
+          <section className="result-panel analyzing-panel" aria-live="polite">
+            <div className="loading-card">
+              <Loader2 className="spin" size={28} aria-hidden="true" />
+              <div>
+                <p className="eyebrow">Analyzing</p>
+                <h2>正在生成恢复建议</h2>
+                <p>系统正在计算恢复压力并生成 24 小时计划。</p>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {appView === "result" && result ? (
+          <section className="result-panel result-page" aria-labelledby="result-title">
+            <div className="section-heading result-page-heading">
+              <div>
+                <p className="eyebrow">Output</p>
+                <h2 id="result-title">恢复结果</h2>
+              </div>
+              <div className="result-heading-actions">
+                <span className="record-id">#{result.recovery_id}</span>
+                <button className="secondary-button compact" type="button" onClick={handleModifyInput}>
+                  <ClipboardList size={16} aria-hidden="true" />
+                  修改输入
+                </button>
+                <button className="primary-button compact" type="button" onClick={handleReanalyze} disabled={isLoading}>
+                  <Zap size={16} aria-hidden="true" />
+                  重新分析
+                </button>
+              </div>
+            </div>
+
+            <ResultTabs activeTab={resultTab} onChange={setResultTab} />
+
             <ResultView
               result={result}
+              activeTab={resultTab}
               feedback={feedbackForm}
               feedbackStatus={feedbackStatus}
               onFeedbackChange={(nextFeedback) => {
@@ -536,14 +1079,201 @@ function App() {
               }}
               onFeedbackSubmit={handleFeedbackSubmit}
             />
-          ) : (
-            <EmptyResult />
-          )}
 
-          <HistoryPanel items={history} error={historyError} />
-        </section>
+            <details className="history-disclosure">
+              <summary className="history-summary">
+                <History size={18} aria-hidden="true" />
+                最近 7 次记录
+              </summary>
+              <HistoryPanel items={history} error={historyError} />
+            </details>
+          </section>
+        ) : null}
       </main>
     </div>
+  );
+}
+
+type InputStepperProps = {
+  steps: typeof inputSteps;
+  currentStep: InputStepId;
+  currentIndex: number;
+  onSelect: (step: InputStepId) => void;
+};
+
+function InputStepper({ steps, currentStep, currentIndex, onSelect }: InputStepperProps) {
+  return (
+    <nav className="input-stepper" aria-label="输入步骤">
+      {steps.map((step, index) => {
+        const Icon = step.icon;
+        const isActive = step.id === currentStep;
+        const isDone = index < currentIndex;
+        return (
+          <button
+            className={isActive ? "step-button active" : isDone ? "step-button done" : "step-button"}
+            key={step.id}
+            type="button"
+            onClick={() => onSelect(step.id)}
+            disabled={index > currentIndex}
+          >
+            <Icon size={16} aria-hidden="true" />
+            <span>{step.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+type MethodCardProps = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  actionLabel: string;
+  disabled?: boolean;
+  passive?: boolean;
+  onClick?: () => void;
+};
+
+function MethodCard({
+  icon: Icon,
+  title,
+  description,
+  actionLabel,
+  disabled,
+  passive,
+  onClick,
+}: MethodCardProps) {
+  const content = (
+    <>
+      <Icon size={20} aria-hidden="true" />
+      <span>{title}</span>
+      <small>{description}</small>
+      <strong>{actionLabel}</strong>
+    </>
+  );
+
+  if (passive) {
+    return <article className="method-card passive">{content}</article>;
+  }
+
+  return (
+    <button
+      className={disabled ? "method-card disabled" : "method-card"}
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+    >
+      {content}
+    </button>
+  );
+}
+
+function InputSummary({ form, pace }: { form: EditableAnalyzeRecoveryRequest; pace: string }) {
+  const summaryGroups: Array<{
+    title: string;
+    items: Array<{ label: string; value: string }>;
+  }> = [
+    {
+      title: "跑步负荷",
+      items: [
+        { label: "距离", value: `${formatCompactNumber(form.distance_km)} km` },
+        { label: "时长", value: `${formatCompactNumber(form.duration_min)} min` },
+        { label: "配速", value: `${pace}/km` },
+        { label: "类型", value: runTypeLabel(form.run_type_main) },
+        { label: "时间", value: runTimeLabel(form.run_time_period) },
+        {
+          label: "修饰",
+          value:
+            form.run_type_modifier.length > 0
+              ? form.run_type_modifier.map(runModifierLabel).join("、")
+              : "无",
+        },
+      ],
+    },
+    {
+      title: "身体状态",
+      items: [
+        { label: "RPE", value: `${form.rpe}/10` },
+        { label: "睡眠", value: `${formatCompactNumber(form.sleep_hours)} h` },
+        { label: "疲劳", value: `${form.fatigue_level}/10` },
+        { label: "酸痛", value: `${form.soreness_level}/10` },
+        { label: "平均心率", value: form.avg_hr === null ? "未填" : `${Math.round(form.avg_hr)} bpm` },
+        { label: "最大心率", value: form.max_hr === null ? "未填" : `${Math.round(form.max_hr)} bpm` },
+      ],
+    },
+    {
+      title: "恢复约束",
+      items: [
+        { label: "跑步水平", value: userLevelLabel(form.user_level) },
+        {
+          label: "饮食场景",
+          value: dietOptions.find((option) => option.value === form.diet_preference)?.label ?? "正常饮食",
+        },
+        {
+          label: "明日计划",
+          value: tomorrowOptions.find((option) => option.value === form.tomorrow_plan)?.label ?? "未确定",
+        },
+        {
+          label: "近 48h",
+          value:
+            past48hOptions.find((option) => option.value === form.past_48h_training)?.label ??
+            form.past_48h_training,
+        },
+        {
+          label: "异常信号",
+          value:
+            form.symptoms.length > 0
+              ? form.symptoms.map(symptomLabel).join("、")
+              : "无",
+        },
+      ],
+    },
+  ];
+
+  return (
+    <div className="input-summary-grid">
+      {summaryGroups.map((group) => (
+        <article className="summary-card" key={group.title}>
+          <h3>{group.title}</h3>
+          <dl className="summary-list">
+            {group.items.map((item) => (
+              <div className="summary-row" key={`${group.title}-${item.label}`}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+        </article>
+      ))}
+    </div>
+  );
+}
+
+function ResultTabs({
+  activeTab,
+  onChange,
+}: {
+  activeTab: ResultTabId;
+  onChange: (tab: ResultTabId) => void;
+}) {
+  return (
+    <nav className="result-tabs" aria-label="结果模块">
+      {resultTabs.map((tab) => {
+        const Icon = tab.icon;
+        return (
+          <button
+            className={tab.id === activeTab ? "tab-button active" : "tab-button"}
+            key={tab.id}
+            type="button"
+            onClick={() => onChange(tab.id)}
+          >
+            <Icon size={16} aria-hidden="true" />
+            <span>{tab.label}</span>
+          </button>
+        );
+      })}
+    </nav>
   );
 }
 
@@ -571,6 +1301,129 @@ function DemoCaseBar({ cases, activeCaseId, onSelect, disabled }: DemoCaseBarPro
         </button>
       ))}
     </div>
+  );
+}
+
+type ScreenshotUploadPanelProps = {
+  status: ScreenshotStatus;
+  previewUrl: string | null;
+  result: RunScreenshotExtractResponse | null;
+  error: string | null;
+  touchedFields: string[];
+  confirmed: boolean;
+  onFileSelect: (file: File | null) => void;
+  onConfirm: () => void;
+};
+
+function ScreenshotUploadPanel({
+  status,
+  previewUrl,
+  result,
+  error,
+  touchedFields,
+  confirmed,
+  onFileSelect,
+  onConfirm,
+}: ScreenshotUploadPanelProps) {
+  const extractedEntries = result
+    ? Object.entries({
+        distance_km: result.distance_km,
+        duration_min: result.duration_min,
+        pace: result.pace,
+        run_type_guess: result.run_type_guess,
+        run_time_period_guess: result.run_time_period_guess,
+        avg_hr: result.avg_hr,
+        max_hr: result.max_hr,
+        calories: result.calories,
+        elevation_gain: result.elevation_gain,
+        source_app_guess: result.source_app_guess,
+      }).filter(([, value]) => value !== null && value !== "")
+    : [];
+  const missingCount = result?.missing_fields.length ?? 0;
+
+  return (
+    <section className="screenshot-panel" aria-labelledby="screenshot-title">
+      <div className="screenshot-copy">
+        <div>
+          <p className="eyebrow">Screenshot</p>
+          <h3 id="screenshot-title">上传运动截图辅助填写</h3>
+        </div>
+        <p>自动识别距离、时长、心率等客观数据；RPE、疲劳、酸痛和明日计划仍需手动确认。</p>
+      </div>
+
+      <label className="screenshot-dropzone">
+        <input
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          onChange={(event) => {
+            onFileSelect(event.target.files?.[0] ?? null);
+            event.target.value = "";
+          }}
+        />
+        <Activity size={18} aria-hidden="true" />
+        <span>{status === "extracting" ? "识别中..." : "选择 png / jpg / webp 截图"}</span>
+      </label>
+
+      {previewUrl ? (
+        <div className="screenshot-preview">
+          <img src={previewUrl} alt="运动截图预览" />
+        </div>
+      ) : null}
+
+      <div className={`screenshot-status ${status}`}>
+        {status === "idle" ? "未上传截图，可继续手动填写。" : null}
+        {status === "extracting" ? (
+          <>
+            <Loader2 className="spin" size={16} aria-hidden="true" />
+            <span>正在识别截图内容...</span>
+          </>
+        ) : null}
+        {status === "success" ? (
+          <>
+            <CheckCircle2 size={16} aria-hidden="true" />
+            <span>
+              已回填 {touchedFields.length} 项客观字段
+              {missingCount > 0 ? `，还有 ${missingCount} 项需要手动补充` : "，请检查后继续补全主观状态"}
+            </span>
+          </>
+        ) : null}
+        {status === "error" ? (
+          <>
+            <AlertTriangle size={16} aria-hidden="true" />
+            <span>{error ?? "未能可靠识别截图内容，请手动填写跑步数据。"}</span>
+          </>
+        ) : null}
+      </div>
+
+      {result && extractedEntries.length > 0 ? (
+        <div className="screenshot-result">
+          {extractedEntries.map(([field, value]) => (
+            <div key={field}>
+              <span>{screenshotFieldLabels[field] ?? field}</span>
+              <strong>{formatScreenshotValue(field, value)}</strong>
+              <small>{Math.round((result.confidence[field] ?? 0) * 100)}%</small>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {result && result.warnings.length > 0 ? (
+        <ul className="screenshot-warnings">
+          {result.warnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      ) : null}
+
+      {result ? (
+        <div className="screenshot-actions">
+          <button className="secondary-button compact" type="button" onClick={onConfirm}>
+            <CheckCircle2 size={16} aria-hidden="true" />
+            {confirmed ? "已确认，可继续分析" : "确认识别结果"}
+          </button>
+        </div>
+      ) : null}
+    </section>
   );
 }
 
@@ -671,12 +1524,13 @@ type NumberFieldProps = {
   min: number;
   max: number;
   step: number;
-  value: number | "";
+  value: number | null;
   optional?: boolean;
+  source?: string;
   onChange: (value: number | null) => void;
 };
 
-function NumberField({ label, min, max, step, value, optional, onChange }: NumberFieldProps) {
+function NumberField({ label, min, max, step, value, optional, source, onChange }: NumberFieldProps) {
   return (
     <label className="field">
       <span>{label}</span>
@@ -685,14 +1539,16 @@ function NumberField({ label, min, max, step, value, optional, onChange }: Numbe
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={value ?? ""}
         placeholder={optional ? "选填" : undefined}
         required={!optional}
+        inputMode={step < 1 ? "decimal" : "numeric"}
         onChange={(event) => {
           const nextValue = event.target.value;
           onChange(nextValue === "" ? null : Number(nextValue));
         }}
       />
+      {source ? <small className="field-source">{source}</small> : null}
     </label>
   );
 }
@@ -701,10 +1557,11 @@ type SelectFieldProps = {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
+  source?: string;
   onChange: (value: string) => void;
 };
 
-function SelectField({ label, value, options, onChange }: SelectFieldProps) {
+function SelectField({ label, value, options, source, onChange }: SelectFieldProps) {
   return (
     <label className="field">
       <span>{label}</span>
@@ -715,6 +1572,7 @@ function SelectField({ label, value, options, onChange }: SelectFieldProps) {
           </option>
         ))}
       </select>
+      {source ? <small className="field-source">{source}</small> : null}
     </label>
   );
 }
@@ -783,6 +1641,7 @@ function RpeSlider({ value, onChange }: RpeSliderProps) {
 
 type ResultViewProps = {
   result: AnalyzeRecoveryResponse;
+  activeTab: ResultTabId;
   feedback: FeedbackRequest;
   feedbackStatus: "idle" | "submitting" | "sent" | "error";
   onFeedbackChange: (feedback: FeedbackRequest) => void;
@@ -791,13 +1650,12 @@ type ResultViewProps = {
 
 function ResultView({
   result,
+  activeTab,
   feedback,
   feedbackStatus,
   onFeedbackChange,
   onFeedbackSubmit,
 }: ResultViewProps) {
-  const scoreColor = getScoreColor(result.score);
-  const headline = getRecoveryHeadline(result.score);
   const adviceItems: Array<{
     key: "diet" | "hydration" | "sleep" | "relaxation" | "tomorrow";
     icon: LucideIcon;
@@ -812,6 +1670,29 @@ function ResultView({
 
   return (
     <div className="result-content">
+      {activeTab === "summary" ? <ResultSummary result={result} /> : null}
+      {activeTab === "plan" ? <ResultPlan result={result} adviceItems={adviceItems} /> : null}
+      {activeTab === "details" ? <ResultDetails result={result} /> : null}
+
+      <div className="result-footer">
+        <FeedbackPanel
+          feedback={feedback}
+          status={feedbackStatus}
+          onChange={onFeedbackChange}
+          onSubmit={onFeedbackSubmit}
+        />
+        <p className="safety-note">{result.advice.safety_note}</p>
+      </div>
+    </div>
+  );
+}
+
+function ResultSummary({ result }: { result: AnalyzeRecoveryResponse }) {
+  const scoreColor = getScoreColor(result.score);
+  const headline = getRecoveryHeadline(result.score);
+
+  return (
+    <div className="result-tab-panel">
       <TomorrowDecisionCard result={result} />
 
       <section className="result-hero" aria-label="恢复压力概览">
@@ -843,29 +1724,24 @@ function ResultView({
       </section>
 
       {result.safety_flags.length > 0 ? <SafetyBanner flags={result.safety_flags} /> : null}
+    </div>
+  );
+}
 
-      <section className="content-block" aria-labelledby="reasons-title">
-        <div className="block-heading">
-          <div>
-            <p className="eyebrow">Drivers</p>
-            <h3 id="reasons-title">主要原因</h3>
-          </div>
-        </div>
-        <div className="reason-grid">
-          {result.reasons.map((reason, index) => (
-            <article className="reason-item" key={`${reason.factor}-${reason.impact}`}>
-              <div className="reason-topline">
-                <span className="reason-rank">{String(index + 1).padStart(2, "0")}</span>
-                <span>{reason.factor}</span>
-                <strong>+{reason.impact}</strong>
-              </div>
-              <p>{reason.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <ComponentBreakdown componentScores={result.component_scores} />
+function ResultPlan({
+  result,
+  adviceItems,
+}: {
+  result: AnalyzeRecoveryResponse;
+  adviceItems: Array<{
+    key: "diet" | "hydration" | "sleep" | "relaxation" | "tomorrow";
+    icon: LucideIcon;
+    tone: string;
+  }>;
+}) {
+  return (
+    <div className="result-tab-panel">
+      <RecoveryTimeline items={result.timeline} />
 
       <section className="content-block" aria-labelledby="advice-title">
         <div className="block-heading">
@@ -889,18 +1765,57 @@ function ResultView({
           })}
         </div>
       </section>
-
-      <RecoveryTimeline items={result.timeline} />
-
-      <FeedbackPanel
-        feedback={feedback}
-        status={feedbackStatus}
-        onChange={onFeedbackChange}
-        onSubmit={onFeedbackSubmit}
-      />
-
-      <p className="safety-note">{result.advice.safety_note}</p>
     </div>
+  );
+}
+
+function ResultDetails({ result }: { result: AnalyzeRecoveryResponse }) {
+  return (
+    <div className="result-tab-panel">
+      <section className="content-block" aria-labelledby="reasons-title">
+        <div className="block-heading">
+          <div>
+            <p className="eyebrow">Drivers</p>
+            <h3 id="reasons-title">主要原因</h3>
+          </div>
+        </div>
+        <div className="reason-grid">
+          {result.reasons.map((reason, index) => (
+            <article className="reason-item" key={`${reason.factor}-${reason.impact}`}>
+              <div className="reason-topline">
+                <span className="reason-rank">{String(index + 1).padStart(2, "0")}</span>
+                <span>{reason.factor}</span>
+                <strong>+{reason.impact}</strong>
+              </div>
+              <p>{reason.text}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <ComponentBreakdown componentScores={result.component_scores} />
+
+      <div className="details-grid">
+        <DetailList title="Derived metrics" entries={result.derived_metrics} />
+        <DetailList title="Recommendation meta" entries={{ ...result.recommendation_meta }} />
+      </div>
+    </div>
+  );
+}
+
+function DetailList({ title, entries }: { title: string; entries: Record<string, unknown> }) {
+  return (
+    <section className="detail-card">
+      <div className="minor-heading">{title}</div>
+      <dl className="detail-list">
+        {Object.entries(entries).map(([key, value]) => (
+          <div className="detail-row" key={key}>
+            <dt>{key}</dt>
+            <dd>{formatDetailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -1201,18 +2116,6 @@ function HistoryPanel({ items, error }: { items: RecoveryHistoryItem[]; error: s
   );
 }
 
-function EmptyResult() {
-  return (
-    <div className="empty-result">
-      <div className="empty-icon">
-        <Activity size={30} aria-hidden="true" />
-      </div>
-      <h3>等待分析</h3>
-      <p>暂无恢复结果</p>
-    </div>
-  );
-}
-
 function getRpeLabel(value: number) {
   if (value <= 2) {
     return "非常轻松，可以完整聊天";
@@ -1256,6 +2159,14 @@ function runTypeLabel(value: string) {
   );
 }
 
+function runTimeLabel(value: string) {
+  return runTimeOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function userLevelLabel(value: string) {
+  return userLevelOptions.find((option) => option.value === value)?.label ?? value;
+}
+
 function runModifierLabel(value: string) {
   return (
     runTypeModifierOptions.find((option) => option.value === value)?.label ??
@@ -1263,11 +2174,31 @@ function runModifierLabel(value: string) {
   );
 }
 
+function symptomLabel(value: string) {
+  return symptomOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function formatDetailValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return formatCompactNumber(value);
+  }
+  return String(value);
+}
+
 function formatHistoryDate(value: string) {
   return value.slice(0, 16).replace("T", " ");
 }
 
-function formatCompactNumber(value: number) {
+function formatCompactNumber(value: number | null) {
+  if (value === null) {
+    return "--";
+  }
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 

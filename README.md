@@ -51,6 +51,55 @@ The script respects these optional environment variables:
 - `RUNRECOVER_WEB_HOST`, `RUNRECOVER_WEB_PORT`
 - `VITE_API_BASE_URL`
 
+### 手机局域网体验 RunRecover
+
+如果不想打包 App、也不想部署线上环境，可以让手机和 Mac 连接同一个 Wi-Fi，
+然后通过 Mac 的局域网 IP 在手机浏览器访问 RunRecover。
+
+从仓库根目录运行：
+
+```bash
+chmod +x scripts/dev-mobile.sh
+npm run dev:mobile
+```
+
+脚本会自动尝试读取 Mac 当前局域网 IP：
+
+1. `ipconfig getifaddr en0`
+2. 如果为空，再尝试 `ipconfig getifaddr en1`
+
+启动后终端会输出两类地址：
+
+- Mac 本机访问地址：`http://127.0.0.1:5173`
+- 手机访问地址：`http://<LAN_IP>:5173`
+
+在手机浏览器打开终端里显示的手机访问地址，例如：
+
+```text
+http://192.168.1.23:5173
+```
+
+注意：手机不能访问 `127.0.0.1:5173`，因为 `127.0.0.1` 在手机上代表手机自己，
+不是你的 Mac。
+
+`npm run dev:mobile` 会自动设置：
+
+- `RUNRECOVER_API_HOST=0.0.0.0`
+- `RUNRECOVER_API_PORT=8000`
+- `RUNRECOVER_WEB_HOST=0.0.0.0`
+- `RUNRECOVER_WEB_PORT=5173`
+- `VITE_API_BASE_URL=http://<LAN_IP>:8000`
+- `RUNRECOVER_CORS_ORIGINS=http://<LAN_IP>:5173,http://127.0.0.1:5173,http://localhost:5173`
+
+常见问题：
+
+- 手机打不开页面：确认手机和 Mac 在同一个 Wi-Fi；检查 Mac 防火墙是否阻止入站连接；
+  确认 `5173` 和 `8000` 端口没有被其他进程占用；确认手机打开的是脚本输出的 `<LAN_IP>`。
+- 页面能打开但 API 请求失败：检查终端输出的 `VITE_API_BASE_URL` 是否是
+  `http://<LAN_IP>:8000`；检查 `RUNRECOVER_CORS_ORIGINS` 是否包含
+  `http://<LAN_IP>:5173`。
+- PWA 添加到主屏幕：本地 HTTP 局域网访问下能力有限，完整安装体验通常需要 HTTPS 部署。
+
 ### API
 
 ```bash

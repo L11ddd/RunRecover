@@ -3,9 +3,10 @@ import type {
   AnalyzeRecoveryResponse,
   FeedbackRequest,
   RecoveryHistoryItem,
+  RunScreenshotExtractResponse,
 } from "./types";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
 export async function analyzeRecovery(
   payload: AnalyzeRecoveryRequest,
@@ -50,6 +51,23 @@ export async function fetchRecoveryHistory(limit = 7): Promise<RecoveryHistoryIt
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || `History request failed with ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export async function extractRunScreenshot(file: File): Promise<RunScreenshotExtractResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${API_BASE_URL}/api/run-screenshot/extract`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Screenshot extraction failed with ${response.status}`);
   }
 
   return response.json();

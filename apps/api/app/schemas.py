@@ -210,3 +210,36 @@ class RecoveryHistoryItem(BaseModel):
     score: int
     level: str
     tomorrow_advice: str
+
+
+class RunScreenshotExtractResponse(BaseModel):
+    distance_km: Optional[float] = Field(default=None, ge=0)
+    duration_min: Optional[float] = Field(default=None, ge=0)
+    pace: Optional[str] = None
+    run_type_guess: Optional[str] = None
+    run_time_period_guess: Optional[str] = None
+    avg_hr: Optional[int] = Field(default=None, ge=1)
+    max_hr: Optional[int] = Field(default=None, ge=1)
+    calories: Optional[float] = Field(default=None, ge=0)
+    elevation_gain: Optional[float] = Field(default=None)
+    source_app_guess: Optional[str] = None
+    confidence: Dict[str, float] = Field(default_factory=dict)
+    missing_fields: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+    @field_validator("confidence")
+    @classmethod
+    def normalize_confidence(cls, confidence: Dict[str, float]) -> Dict[str, float]:
+        normalized: Dict[str, float] = {}
+        for key, value in confidence.items():
+            try:
+                numeric = float(value)
+            except (TypeError, ValueError):
+                numeric = 0.0
+            normalized[key] = max(0.0, min(1.0, numeric))
+        return normalized
+
+    @field_validator("missing_fields", "warnings")
+    @classmethod
+    def normalize_string_list(cls, values: List[str]) -> List[str]:
+        return [value.strip() for value in values if value and value.strip()]

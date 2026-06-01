@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -20,9 +20,16 @@ from app.schemas import (
     HealthResponse,
     RecommendationMeta,
     RecoveryHistoryItem,
+    RunScreenshotExtractResponse,
 )
 from app.services.llm import get_recommendation_provider
 from app.services.reasons import build_reasons
+from app.services.run_screenshot import (
+    ScreenshotExtractionError,
+    ScreenshotValidationError,
+    extract_run_screenshot_from_image,
+    validate_screenshot_upload,
+)
 from app.services.safety import evaluate_safety
 from app.services.scoring import calculate_score
 
@@ -48,6 +55,24 @@ app.add_middleware(
 @app.get("/api/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", service="runrecover-api")
+
+
+@app.post("/api/run-screenshot/extract", response_model=RunScreenshotExtractResponse)
+async def extract_run_screenshot(
+    file: UploadFile = File(...),
+) -> RunScreenshotExtractResponse:
+    content = await file.read()
+    content_type = file.content_type
+
+    try:
+        validate_screenshot_upload(content, content_type)
+    except ScreenshotValidationError as exc:
+        raise HTTPException(status_code=415, detail=str(exc)) from exc
+
+    try:
+        return extract_run_screenshot_from_image(content, content_type or "")
+    except ScreenshotExtractionError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.post("/api/recovery/analyze", response_model=AnalyzeRecoveryResponse)

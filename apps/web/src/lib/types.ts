@@ -139,6 +139,22 @@ export type RecoveryHistoryItem = {
   tomorrow_advice: string;
 };
 
+export type RunScreenshotExtractResponse = {
+  distance_km: number | null;
+  duration_min: number | null;
+  pace: string | null;
+  run_type_guess: string | null;
+  run_time_period_guess: string | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  calories: number | null;
+  elevation_gain: number | null;
+  source_app_guess: string | null;
+  confidence: Record<string, number>;
+  missing_fields: string[];
+  warnings: string[];
+};
+
 export type DemoCase = {
   id: string;
   name: string;

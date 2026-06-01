@@ -1,6 +1,11 @@
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.schemas import RunScreenshotExtractResponse
+from app.services.run_screenshot import ScreenshotExtractionError
+
+
+PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"runrecover-test-image"
 
 
 def make_client(tmp_path, monkeypatch):
@@ -33,6 +38,72 @@ def test_health(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok", "service": "runrecover-api"}
+
+
+def test_run_screenshot_extract_returns_structured_fields(tmp_path, monkeypatch):
+    def fake_extract(content: bytes, content_type: str) -> RunScreenshotExtractResponse:
+        assert content.startswith(b"\x89PNG")
+        assert content_type == "image/png"
+        return RunScreenshotExtractResponse(
+            distance_km=8.2,
+            duration_min=45.5,
+            pace="5:33/km",
+            run_type_guess="tempo",
+            run_time_period_guess="night",
+            avg_hr=156,
+            max_hr=None,
+            calories=None,
+            elevation_gain=None,
+            source_app_guess="Strava",
+            confidence={"distance_km": 0.95, "duration_min": 0.9, "avg_hr": 0.8},
+            missing_fields=["max_hr"],
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.main.extract_run_screenshot_from_image", fake_extract)
+
+    with make_client(tmp_path, monkeypatch) as client:
+        response = client.post(
+            "/api/run-screenshot/extract",
+            files={"file": ("run.png", PNG_BYTES, "image/png")},
+        )
+
+    body = response.json()
+
+    assert response.status_code == 200
+    assert body["distance_km"] == 8.2
+    assert body["duration_min"] == 45.5
+    assert body["avg_hr"] == 156
+    assert body["run_type_guess"] == "tempo"
+    assert body["missing_fields"] == ["max_hr"]
+
+
+def test_run_screenshot_extract_rejects_non_image(tmp_path, monkeypatch):
+    with make_client(tmp_path, monkeypatch) as client:
+        response = client.post(
+            "/api/run-screenshot/extract",
+            files={"file": ("notes.txt", b"distance 8km", "text/plain")},
+        )
+
+    assert response.status_code == 415
+    assert "仅支持" in response.json()["detail"]
+
+
+def test_run_screenshot_extract_unavailable_keeps_analyze_usable(tmp_path, monkeypatch):
+    def fake_extract(_: bytes, __: str) -> RunScreenshotExtractResponse:
+        raise ScreenshotExtractionError("未能可靠识别截图内容，请手动填写跑步数据。")
+
+    monkeypatch.setattr("app.main.extract_run_screenshot_from_image", fake_extract)
+
+    with make_client(tmp_path, monkeypatch) as client:
+        extraction_response = client.post(
+            "/api/run-screenshot/extract",
+            files={"file": ("run.png", PNG_BYTES, "image/png")},
+        )
+        analyze_response = client.post("/api/recovery/analyze", json=valid_payload())
+
+    assert extraction_response.status_code == 503
+    assert analyze_response.status_code == 200
 
 
 def test_analyze_recovery_returns_complete_response(tmp_path, monkeypatch):
