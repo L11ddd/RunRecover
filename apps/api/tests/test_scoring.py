@@ -147,31 +147,6 @@ def test_safety_symptom_triggers_flag():
     assert any("停止跑步" in flag for flag in flags)
 
 
-def test_new_symptoms_affect_score_and_reasons():
-    run_input = make_input(
-        symptoms=["palpitations", "one_sided_calf_pain", "dark_urine"],
-    )
-
-    result = calculate_score(run_input)
-    reasons = build_reasons(run_input, result)
-
-    assert result.component_scores["symptoms"] == 18
-    assert any(reason.factor == "异常信号" for reason in reasons)
-    assert any("异常心悸" in reason.text for reason in reasons)
-
-
-def test_new_symptoms_trigger_safety_flags():
-    run_input = make_input(
-        symptoms=["fainting", "nausea_vomiting", "fever_infection"],
-    )
-
-    flags = evaluate_safety(run_input)
-
-    assert len(flags) >= 3
-    assert any("昏厥" in flag for flag in flags)
-    assert any("发热" in flag for flag in flags)
-
-
 def test_recent_hard_training_with_tomorrow_intensity_triggers_safety_flag():
     run_input = make_input(
         rpe=8,

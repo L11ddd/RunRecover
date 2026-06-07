@@ -100,56 +100,6 @@ http://192.168.1.23:5173
   `http://<LAN_IP>:5173`。
 - PWA 添加到主屏幕：本地 HTTP 局域网访问下能力有限，完整安装体验通常需要 HTTPS 部署。
 
-### 公网临时链接
-
-如果需要临时发给别人访问，可以从仓库根目录运行：
-
-```bash
-npm run dev:tunnel
-```
-
-这个命令会启动 RunRecover，并通过 `cloudflared` 创建一个临时公网链接。终端会输出：
-
-```text
-Public URL: https://<random>.trycloudflare.com
-```
-
-保持终端打开，其他设备就可以通过这个临时链接访问。
-
-### 自有域名启动
-
-如果你已经有自己的域名，并且不用临时公网链接，可以使用：
-
-```bash
-npm run dev:domain
-```
-
-这个命令不会创建公网隧道；它只会按自有域名访问方式启动 RunRecover：
-
-- Web 监听 `0.0.0.0:5173`
-- API 监听 `127.0.0.1:8000`
-- 浏览器请求同域 `/api`，由 Vite 代理到本地 API
-- 如果配置了 `RUNRECOVER_PUBLIC_URL`，脚本会把该域名加入后端 CORS
-
-在仓库根目录创建 `.env.local`：
-
-```bash
-RUNRECOVER_PUBLIC_URL=https://your-domain.example
-```
-
-如果你的域名是 `runrecover.cn`，就写：
-
-```bash
-RUNRECOVER_PUBLIC_URL=https://runrecover.cn
-```
-
-然后需要在你的域名服务商、服务器或路由器上完成外部访问配置。常见做法：
-
-- 域名 DNS 的 `A` 记录指向你的公网 IP 或服务器 IP。
-- 如果服务跑在家里或办公室的 Mac 上，路由器需要把公网 `80/443` 转发到这台 Mac，或转发到一台反向代理服务器。
-- 推荐用 Nginx/Caddy 之类反向代理接 HTTPS，然后把请求代理到 `http://127.0.0.1:5173`。
-- 不要直接把后端 `8000` 暴露到公网；前端同域 `/api` 会通过 Vite 代理访问后端。
-
 ### API
 
 ```bash

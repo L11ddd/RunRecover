@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from app.schemas import AnalyzeRecoveryRequest, ScoreResult
-from app.services.safety import get_symptom_load
 
 
 RUN_TYPE_LOADS = {
@@ -190,7 +189,6 @@ def calculate_score(run_input: AnalyzeRecoveryRequest) -> ScoreResult:
         "fatigue": round(run_input.fatigue_level * 1.2),
         "soreness": round(run_input.soreness_level * 1.0),
         "recent_training": get_recent_training_load(run_input.past_48h_training),
-        "symptoms": get_symptom_load(run_input.symptoms),
         "time": get_time_penalty(run_input.run_time_period, run_input.rpe),
         "tomorrow_conflict": 0,
     }

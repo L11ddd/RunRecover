@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import List
 
 from app.schemas import AnalyzeRecoveryRequest, Reason, ScoreResult
-from app.services.safety import SYMPTOM_LABELS
 
 
 def build_reasons(run_input: AnalyzeRecoveryRequest, score_result: ScoreResult) -> List[Reason]:
@@ -125,17 +124,6 @@ def build_reasons(run_input: AnalyzeRecoveryRequest, score_result: ScoreResult) 
             )
         )
 
-    symptom_load = component_scores.get("symptoms", 0)
-    if symptom_load > 0:
-        symptom_text = "、".join(symptom_label(symptom) for symptom in run_input.symptoms)
-        candidates.append(
-            Reason(
-                factor="异常信号",
-                impact=symptom_load,
-                text=f"已记录 {symptom_text}，建议先暂停刺激性训练并观察变化。",
-            )
-        )
-
     heart_rate_load = component_scores["heart_rate"]
     if heart_rate_load > 0:
         candidates.append(
@@ -171,7 +159,7 @@ def build_reasons(run_input: AnalyzeRecoveryRequest, score_result: ScoreResult) 
 
     sorted_reasons = sorted(candidates, key=lambda reason: reason.impact, reverse=True)
     selected = sorted_reasons[:5]
-    for factor in ["异常信号", "明日计划", "近 48 小时", "训练修饰"]:
+    for factor in ["明日计划", "近 48 小时", "训练修饰"]:
         selected = include_reason_factor(selected, sorted_reasons, factor)
 
     return selected
@@ -192,7 +180,7 @@ def include_reason_factor(
     if reason_to_include is None:
         return selected
 
-    protected_factors = {"异常信号", "明日计划", "近 48 小时", "训练修饰"}
+    protected_factors = {"明日计划", "近 48 小时", "训练修饰"}
     if len(selected) < 5:
         selected.append(reason_to_include)
     else:
@@ -247,10 +235,6 @@ def run_type_modifier_label(modifier: str) -> str:
         "near_all_out": "接近全力",
     }
     return labels.get(modifier, modifier)
-
-
-def symptom_label(symptom: str) -> str:
-    return SYMPTOM_LABELS.get(symptom, symptom)
 
 
 def tomorrow_plan_label(plan: str) -> str:

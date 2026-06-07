@@ -153,33 +153,8 @@ const symptomOptions = [
   { value: "chest_pain", label: "胸闷/胸痛" },
   { value: "dizziness", label: "头晕" },
   { value: "breathing_difficulty", label: "呼吸困难" },
-  { value: "palpitations", label: "异常心悸" },
-  { value: "fainting", label: "昏厥/眼前发黑" },
-  { value: "nausea_vomiting", label: "恶心/呕吐" },
   { value: "joint_pain", label: "关节疼痛" },
   { value: "pain_affects_walking", label: "疼痛影响走路" },
-  { value: "swelling", label: "异常肿胀" },
-  { value: "numbness_tingling", label: "麻木/刺痛" },
-  { value: "one_sided_calf_pain", label: "单侧小腿痛/肿胀" },
-  { value: "fever_infection", label: "发热/感染感" },
-  { value: "dark_urine", label: "尿色很深" },
-];
-
-type IntervalRestType = "jog" | "walk" | "stand";
-type RaceDistance = "5k" | "10k" | "half_marathon" | "marathon" | "other";
-
-const intervalRestTypeOptions: Array<{ value: IntervalRestType; label: string }> = [
-  { value: "jog", label: "慢跑恢复" },
-  { value: "walk", label: "走路恢复" },
-  { value: "stand", label: "静止休息" },
-];
-
-const raceDistanceOptions: Array<{ value: RaceDistance; label: string }> = [
-  { value: "5k", label: "5km" },
-  { value: "10k", label: "10km" },
-  { value: "half_marathon", label: "半马" },
-  { value: "marathon", label: "全马" },
-  { value: "other", label: "其他" },
 ];
 
 const componentLabels: Record<string, string> = {
@@ -193,7 +168,6 @@ const componentLabels: Record<string, string> = {
   fatigue: "疲劳",
   soreness: "酸痛",
   recent_training: "近 48h",
-  symptoms: "异常信号",
   time: "时间",
   tomorrow_conflict: "明日冲突",
 };
@@ -223,168 +197,6 @@ const isScreenshotUploadEnabled = import.meta.env.VITE_ENABLE_SCREENSHOT_UPLOAD 
 type AppView = "input" | "analyzing" | "result";
 type InputStepId = "method" | "load" | "body" | "context" | "confirm";
 type ResultTabId = "summary" | "plan" | "details";
-type NumericFieldId =
-  | "distance_km"
-  | "duration_min"
-  | "sleep_hours"
-  | "avg_hr"
-  | "max_hr"
-  | "interval_reps"
-  | "interval_work_distance_m"
-  | "interval_rest_duration_sec";
-type IntervalNumericFieldId =
-  | "interval_reps"
-  | "interval_work_distance_m"
-  | "interval_rest_duration_sec";
-type ValidationFieldId = NumericFieldId;
-type FieldErrors = Partial<Record<ValidationFieldId, string>>;
-
-type NumberFieldSpec = {
-  label: string;
-  min: number;
-  max: number;
-  step: string;
-  unit: string;
-  required: boolean;
-  integer?: boolean;
-  decimals?: number;
-  rangeMessage: string;
-  optionalMessage?: string;
-};
-
-const numberFieldSpecs: Record<NumericFieldId, NumberFieldSpec> = {
-  distance_km: {
-    label: "距离",
-    min: 0.5,
-    max: 60,
-    step: "0.01",
-    unit: "km",
-    required: true,
-    decimals: 2,
-    rangeMessage: "距离需在 0.5–60 km 之间",
-  },
-  duration_min: {
-    label: "时长",
-    min: 5,
-    max: 360,
-    step: "1",
-    unit: "分钟",
-    required: true,
-    decimals: 1,
-    rangeMessage: "时长需在 5–360 分钟之间",
-  },
-  sleep_hours: {
-    label: "睡眠",
-    min: 0,
-    max: 14,
-    step: "0.5",
-    unit: "小时",
-    required: true,
-    decimals: 1,
-    rangeMessage: "睡眠需在 0–14 小时之间",
-  },
-  avg_hr: {
-    label: "平均心率",
-    min: 40,
-    max: 230,
-    step: "1",
-    unit: "bpm",
-    required: false,
-    integer: true,
-    rangeMessage: "平均心率应在 40–230 bpm 之间，可留空",
-    optionalMessage: "没有运动手表可以留空，系统会主要参考 RPE 和主观状态。",
-  },
-  max_hr: {
-    label: "最大心率",
-    min: 40,
-    max: 230,
-    step: "1",
-    unit: "bpm",
-    required: false,
-    integer: true,
-    rangeMessage: "最大心率应在 40–230 bpm 之间，可留空",
-    optionalMessage: "没有运动手表可以留空，系统会主要参考 RPE 和主观状态。",
-  },
-  interval_reps: {
-    label: "组数",
-    min: 1,
-    max: 40,
-    step: "1",
-    unit: "组",
-    required: false,
-    integer: true,
-    rangeMessage: "间歇组数需在 1–40 组之间",
-  },
-  interval_work_distance_m: {
-    label: "单组距离",
-    min: 50,
-    max: 10000,
-    step: "50",
-    unit: "m",
-    required: false,
-    integer: true,
-    rangeMessage: "单组距离需在 50–10000 m 之间",
-  },
-  interval_rest_duration_sec: {
-    label: "休息时间",
-    min: 0,
-    max: 900,
-    step: "5",
-    unit: "秒",
-    required: false,
-    integer: true,
-    rangeMessage: "组间休息需在 0–900 秒之间",
-  },
-};
-
-type SpecialtyForm = {
-  interval_reps: string;
-  interval_work_distance_m: string;
-  interval_rest_duration_sec: string;
-  interval_rest_type: IntervalRestType;
-  interval_intensity_note: string;
-  long_has_pace_block: boolean;
-  long_progressive_finish: boolean;
-  long_is_lsd: boolean;
-  race_distance: RaceDistance;
-  race_near_all_out: boolean;
-};
-
-const defaultSpecialtyForm: SpecialtyForm = {
-  interval_reps: "",
-  interval_work_distance_m: "",
-  interval_rest_duration_sec: "",
-  interval_rest_type: "jog",
-  interval_intensity_note: "",
-  long_has_pace_block: false,
-  long_progressive_finish: false,
-  long_is_lsd: true,
-  race_distance: "10k",
-  race_near_all_out: false,
-};
-
-type ScaleAnchor = { range: string; label: string };
-
-const rpeAnchors: ScaleAnchor[] = [
-  { range: "1–2", label: "轻松聊天" },
-  { range: "3–4", label: "呼吸略快" },
-  { range: "5–6", label: "需要专注" },
-  { range: "7–8", label: "说话困难" },
-  { range: "9–10", label: "接近极限" },
-];
-
-const fatigueAnchors: ScaleAnchor[] = [
-  { range: "1–3", label: "轻松" },
-  { range: "4–7", label: "明显疲劳" },
-  { range: "8–10", label: "需要休息" },
-];
-
-const sorenessAnchors: ScaleAnchor[] = [
-  { range: "1–3", label: "无明显酸痛" },
-  { range: "4–7", label: "有酸痛" },
-  { range: "8–10", label: "影响步态" },
-];
-
 
 const inputSteps: Array<{
   id: InputStepId;
@@ -413,61 +225,35 @@ type EditableAnalyzeRecoveryRequest = Omit<
   AnalyzeRecoveryRequest,
   "distance_km" | "duration_min" | "sleep_hours" | "avg_hr" | "max_hr"
 > & {
-  distance_km: string;
-  duration_min: string;
-  sleep_hours: string;
-  avg_hr: string;
-  max_hr: string;
-};
-
-function toEditableForm(payload: AnalyzeRecoveryRequest): EditableAnalyzeRecoveryRequest {
-  return {
-    ...payload,
-    distance_km: formatNumberInput(payload.distance_km),
-    duration_min: formatNumberInput(payload.duration_min),
-    sleep_hours: formatNumberInput(payload.sleep_hours),
-    avg_hr: payload.avg_hr === null || payload.avg_hr === undefined ? "" : String(payload.avg_hr),
-    max_hr: payload.max_hr === null || payload.max_hr === undefined ? "" : String(payload.max_hr),
-  };
-}
-
-type ParsedAnalyzeValues = {
   distance_km: number | null;
   duration_min: number | null;
   sleep_hours: number | null;
   avg_hr: number | null;
   max_hr: number | null;
 };
-type AnalyzeNumberFieldId = keyof ParsedAnalyzeValues;
 
-type FormValidationResult = {
-  errors: FieldErrors;
-  warnings: string[];
-  parsed: ParsedAnalyzeValues;
-};
+function toEditableForm(payload: AnalyzeRecoveryRequest): EditableAnalyzeRecoveryRequest {
+  return {
+    ...payload,
+    avg_hr: payload.avg_hr ?? null,
+    max_hr: payload.max_hr ?? null,
+  };
+}
 
 function buildAnalyzePayload(
   form: EditableAnalyzeRecoveryRequest,
-  validation: FormValidationResult = validateRecoveryInput(form, defaultSpecialtyForm, []),
 ): AnalyzeRecoveryRequest | null {
-  if (Object.keys(validation.errors).length > 0) {
-    return null;
-  }
-  if (
-    validation.parsed.distance_km === null ||
-    validation.parsed.duration_min === null ||
-    validation.parsed.sleep_hours === null
-  ) {
+  if (form.distance_km === null || form.duration_min === null || form.sleep_hours === null) {
     return null;
   }
 
   return {
     ...form,
-    distance_km: validation.parsed.distance_km,
-    duration_min: validation.parsed.duration_min,
-    sleep_hours: validation.parsed.sleep_hours,
-    avg_hr: validation.parsed.avg_hr,
-    max_hr: validation.parsed.max_hr,
+    distance_km: form.distance_km,
+    duration_min: form.duration_min,
+    sleep_hours: form.sleep_hours,
+    avg_hr: form.avg_hr,
+    max_hr: form.max_hr,
   };
 }
 
@@ -537,170 +323,6 @@ function normalizeApiError(message: string) {
   return message || "未能可靠识别截图内容，请手动填写跑步数据。";
 }
 
-function normalizeAnalyzeError(message: string): { message: string; fieldErrors: FieldErrors } {
-  try {
-    const parsed = JSON.parse(message);
-    if (Array.isArray(parsed.detail)) {
-      const fieldErrors: FieldErrors = {};
-      const messages = parsed.detail
-        .map((item: { loc?: string[]; msg?: string }) => {
-          const field = item.loc?.[item.loc.length - 1];
-          const mappedField = mapApiField(field);
-          const fieldMessage = mappedField
-            ? apiFieldErrorMessage(mappedField)
-            : item.msg ?? "字段不合法";
-          if (mappedField) {
-            fieldErrors[mappedField] = fieldMessage;
-          }
-          return fieldMessage;
-        })
-        .filter(Boolean);
-      return {
-        message: messages.length > 0 ? `提交失败：${Array.from(new Set(messages)).join("；")}` : "提交失败：请检查输入字段。",
-        fieldErrors,
-      };
-    }
-    if (typeof parsed.detail === "string") {
-      return { message: parsed.detail, fieldErrors: {} };
-    }
-  } catch {
-    // Keep original text below.
-  }
-  return { message: message || "分析请求失败，请检查输入后重试。", fieldErrors: {} };
-}
-
-function mapApiField(field: string | undefined): ValidationFieldId | null {
-  if (!field) {
-    return null;
-  }
-  if (field in numberFieldSpecs) {
-    return field as ValidationFieldId;
-  }
-  return null;
-}
-
-function apiFieldErrorMessage(field: ValidationFieldId) {
-  if (field === "max_hr") {
-    return "最大心率应在 40–230 bpm 之间，可留空";
-  }
-  return numberFieldSpecs[field].rangeMessage;
-}
-
-function validateRecoveryInput(
-  form: EditableAnalyzeRecoveryRequest,
-  specialty: SpecialtyForm,
-  manualTouchedFields: string[],
-): FormValidationResult {
-  const errors: FieldErrors = {};
-  const warnings: string[] = [];
-  const parsed: ParsedAnalyzeValues = {
-    distance_km: null,
-    duration_min: null,
-    sleep_hours: null,
-    avg_hr: null,
-    max_hr: null,
-  };
-
-  (["distance_km", "duration_min", "sleep_hours", "avg_hr", "max_hr"] as AnalyzeNumberFieldId[]).forEach((field) => {
-    const result = parseNumberField(field, form[field]);
-    parsed[field] = result.value;
-    if (result.error) {
-      errors[field] = result.error;
-    }
-  });
-
-  if (parsed.avg_hr !== null && parsed.max_hr !== null && parsed.max_hr < parsed.avg_hr) {
-    errors.max_hr = "最大心率不应低于平均心率";
-  }
-
-  if (form.run_type_main === "interval") {
-    (["interval_reps", "interval_work_distance_m", "interval_rest_duration_sec"] as IntervalNumericFieldId[]).forEach((field) => {
-      const result = parseNumberField(field, specialty[field]);
-      if (result.error) {
-        errors[field] = result.error;
-      }
-    });
-    if (
-      specialty.interval_reps.trim() === "" ||
-      specialty.interval_work_distance_m.trim() === "" ||
-      specialty.interval_rest_duration_sec.trim() === ""
-    ) {
-      warnings.push("间歇跑专项信息未完整填写，建议补充组数、单组距离和休息时间。");
-    }
-  }
-
-  if (form.run_type_main === "long" && !specialty.long_is_lsd && !specialty.long_has_pace_block && !specialty.long_progressive_finish) {
-    warnings.push("长距离属性未选择，建议确认是普通 LSD、目标配速段还是后半程加速。");
-  }
-
-  if (!manualTouchedFields.includes("rpe") && !manualTouchedFields.includes("fatigue_level") && !manualTouchedFields.includes("soreness_level")) {
-    warnings.push("RPE、疲劳、酸痛仍是默认主观值，请确认已按当前真实感受调整。");
-  }
-
-  return { errors, warnings, parsed };
-}
-
-function parseNumberField(
-  field: NumericFieldId,
-  rawValue: string,
-): { value: number | null; error?: string } {
-  const spec = numberFieldSpecs[field];
-  const value = rawValue.trim();
-
-  if (value === "") {
-    return spec.required ? { value: null, error: spec.rangeMessage } : { value: null };
-  }
-
-  if (value.startsWith("-")) {
-    return { value: null, error: spec.rangeMessage };
-  }
-
-  if (!/^\d+(\.\d*)?$/.test(value)) {
-    return { value: null, error: `${spec.label}请输入有效数字` };
-  }
-
-  const fraction = value.split(".")[1];
-  if (fraction && spec.decimals !== undefined && fraction.length > spec.decimals) {
-    return { value: null, error: `${spec.label}最多支持小数点后 ${spec.decimals} 位` };
-  }
-
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) {
-    return { value: null, error: `${spec.label}请输入有效数字` };
-  }
-
-  if (spec.integer && !Number.isInteger(numericValue)) {
-    return { value: null, error: `${spec.label}应填写整数` };
-  }
-
-  if (numericValue < spec.min || numericValue > spec.max) {
-    return { value: null, error: spec.rangeMessage };
-  }
-
-  return { value: numericValue };
-}
-
-function formatNumberInput(value: number | null | undefined, maxDecimals = 2) {
-  if (value === null || value === undefined) {
-    return "";
-  }
-  const rounded = Number(value.toFixed(maxDecimals));
-  return String(rounded);
-}
-
-function addUnique(values: string[], value: string) {
-  return values.includes(value) ? values : [...values, value];
-}
-
-function omitFieldError(errors: FieldErrors, field: string): FieldErrors {
-  if (!(field in errors)) {
-    return errors;
-  }
-  const next = { ...errors };
-  delete next[field as ValidationFieldId];
-  return next;
-}
-
 function formatScreenshotValue(field: string, value: string | number | null) {
   if (value === null || value === "") {
     return "未识别";
@@ -757,9 +379,6 @@ function App() {
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
   const [screenshotTouchedFields, setScreenshotTouchedFields] = useState<string[]>([]);
   const [isScreenshotConfirmed, setIsScreenshotConfirmed] = useState(false);
-  const [specialtyForm, setSpecialtyForm] = useState<SpecialtyForm>(defaultSpecialtyForm);
-  const [manualTouchedFields, setManualTouchedFields] = useState<string[]>([]);
-  const [serverFieldErrors, setServerFieldErrors] = useState<FieldErrors>({});
 
   const visibleModifierOptions = useMemo(
     () =>
@@ -767,14 +386,6 @@ function App() {
         (option) => !option.visibleFor || option.visibleFor.includes(form.run_type_main),
       ),
     [form.run_type_main],
-  );
-  const validation = useMemo(
-    () => validateRecoveryInput(form, specialtyForm, manualTouchedFields),
-    [form, specialtyForm, manualTouchedFields],
-  );
-  const fieldErrors = useMemo(
-    () => ({ ...validation.errors, ...serverFieldErrors }),
-    [validation.errors, serverFieldErrors],
   );
   const currentStepIndex = inputSteps.findIndex((step) => step.id === inputStep);
   const activeInputStep = inputSteps[currentStepIndex] ?? inputSteps[0];
@@ -807,8 +418,6 @@ function App() {
   ) => {
     setForm((current) => ({ ...current, [field]: value }));
     setScreenshotTouchedFields((current) => current.filter((item) => item !== field));
-    setManualTouchedFields((current) => addUnique(current, String(field)));
-    setServerFieldErrors((current) => omitFieldError(current, String(field)));
     setActiveCaseId(null);
   };
 
@@ -822,70 +431,7 @@ function App() {
         return !option?.visibleFor || option.visibleFor.includes(value);
       }),
     }));
-    if (value !== "race") {
-      setSpecialtyForm((current) => ({ ...current, race_near_all_out: false }));
-    }
     setScreenshotTouchedFields((current) => current.filter((item) => item !== "run_type_main"));
-    setManualTouchedFields((current) => addUnique(current, "run_type_main"));
-    setActiveCaseId(null);
-  };
-
-  const updateSpecialtyField = <K extends keyof SpecialtyForm>(field: K, value: SpecialtyForm[K]) => {
-    setSpecialtyForm((current) => ({ ...current, [field]: value }));
-    setManualTouchedFields((current) => addUnique(current, String(field)));
-    setServerFieldErrors((current) => omitFieldError(current, String(field)));
-    setActiveCaseId(null);
-  };
-
-  const toggleLongRunFlag = (field: "long_has_pace_block" | "long_progressive_finish" | "long_is_lsd") => {
-    const nextSpecialty =
-      field === "long_is_lsd"
-        ? {
-            ...specialtyForm,
-            long_is_lsd: !specialtyForm.long_is_lsd,
-            long_has_pace_block: !specialtyForm.long_is_lsd ? false : specialtyForm.long_has_pace_block,
-            long_progressive_finish: !specialtyForm.long_is_lsd ? false : specialtyForm.long_progressive_finish,
-          }
-        : {
-            ...specialtyForm,
-            [field]: !specialtyForm[field],
-            long_is_lsd: !specialtyForm[field] ? false : specialtyForm.long_is_lsd,
-          };
-
-    setSpecialtyForm(nextSpecialty);
-    setForm((current) => {
-      const modifiers = new Set(current.run_type_modifier);
-      if (nextSpecialty.long_has_pace_block) {
-        modifiers.add("pace_block");
-      } else {
-        modifiers.delete("pace_block");
-      }
-      if (nextSpecialty.long_progressive_finish) {
-        modifiers.add("progressive");
-      } else {
-        modifiers.delete("progressive");
-      }
-      return { ...current, run_type_modifier: Array.from(modifiers) as RunTypeModifier[] };
-    });
-    setManualTouchedFields((current) => addUnique(current, field));
-    setActiveCaseId(null);
-  };
-
-  const updateRaceNearAllOut = (checked: boolean) => {
-    setSpecialtyForm((current) => ({ ...current, race_near_all_out: checked }));
-    setForm((current) => {
-      const hasModifier = current.run_type_modifier.includes("near_all_out");
-      if (checked === hasModifier) {
-        return current;
-      }
-      return {
-        ...current,
-        run_type_modifier: checked
-          ? [...current.run_type_modifier, "near_all_out"]
-          : current.run_type_modifier.filter((modifier) => modifier !== "near_all_out"),
-      };
-    });
-    setManualTouchedFields((current) => addUnique(addUnique(current, "race_near_all_out"), "run_type_modifier"));
     setActiveCaseId(null);
   };
 
@@ -896,13 +442,6 @@ function App() {
         : [...current.run_type_modifier, modifier];
       return { ...current, run_type_modifier };
     });
-    if (modifier === "near_all_out") {
-      setSpecialtyForm((current) => ({
-        ...current,
-        race_near_all_out: !current.race_near_all_out,
-      }));
-    }
-    setManualTouchedFields((current) => addUnique(current, "run_type_modifier"));
     setActiveCaseId(null);
   };
 
@@ -920,9 +459,6 @@ function App() {
     setScreenshotError(null);
     setScreenshotTouchedFields([]);
     setIsScreenshotConfirmed(false);
-    setSpecialtyForm(defaultSpecialtyForm);
-    setManualTouchedFields([]);
-    setServerFieldErrors({});
     setFeedbackForm(defaultFeedback);
     setFeedbackStatus("idle");
     setInputStep("method");
@@ -930,26 +466,32 @@ function App() {
     setAppView("input");
   };
 
-  const getStepFieldErrors = (step: InputStepId) => {
-    const stepFields: Record<InputStepId, ValidationFieldId[]> = {
-      method: [],
-      load: ["distance_km", "duration_min", "interval_reps", "interval_work_distance_m", "interval_rest_duration_sec"],
-      body: ["sleep_hours", "avg_hr", "max_hr"],
-      context: [],
-      confirm: Object.keys(fieldErrors) as ValidationFieldId[],
-    };
-
-    return stepFields[step].filter((field) => fieldErrors[field]);
-  };
-
   const validateStep = (step: InputStepId) => {
-    const erroredFields = getStepFieldErrors(step);
-    if (erroredFields.length > 0) {
-      return fieldErrors[erroredFields[0]] ?? "请先修正当前步骤中的字段错误。";
+    if (step === "load") {
+      if (form.distance_km === null || form.distance_km <= 0) {
+        return "请填写有效的跑步距离。";
+      }
+      if (form.duration_min === null || form.duration_min <= 0) {
+        return "请填写有效的跑步时长。";
+      }
     }
 
-    if (step === "confirm" && !buildAnalyzePayload(form, validation)) {
-      return "请先修正输入错误后再开始分析。";
+    if (step === "body") {
+      if (form.sleep_hours === null || form.sleep_hours < 0) {
+        return "请填写有效的睡眠时间。";
+      }
+      if (form.avg_hr !== null && form.avg_hr <= 0) {
+        return "平均心率需要大于 0，或留空。";
+      }
+      if (form.max_hr !== null && form.max_hr <= 0) {
+        return "最大心率需要大于 0，或留空。";
+      }
+    }
+
+    if (step === "confirm") {
+      if (!buildAnalyzePayload(form)) {
+        return "请先填写距离、时长和睡眠时间。";
+      }
     }
 
     return null;
@@ -972,7 +514,7 @@ function App() {
     setError(null);
 
     if (currentStepIndex >= inputSteps.length - 1) {
-      const payload = buildAnalyzePayload(form, validation);
+      const payload = buildAnalyzePayload(form);
       if (payload) {
         void runAnalyze(payload);
       }
@@ -999,11 +541,11 @@ function App() {
       const next = { ...current };
 
       if (extraction.distance_km !== null) {
-        next.distance_km = formatNumberInput(extraction.distance_km, 2);
+        next.distance_km = extraction.distance_km;
         recognizedFields.push("distance_km");
       }
       if (extraction.duration_min !== null) {
-        next.duration_min = formatNumberInput(extraction.duration_min, 1);
+        next.duration_min = extraction.duration_min;
         recognizedFields.push("duration_min");
       }
       if (runTypeGuess) {
@@ -1022,11 +564,11 @@ function App() {
         recognizedFields.push("run_time_period");
       }
       if (extraction.avg_hr !== null) {
-        next.avg_hr = String(extraction.avg_hr);
+        next.avg_hr = extraction.avg_hr;
         recognizedFields.push("avg_hr");
       }
       if (extraction.max_hr !== null) {
-        next.max_hr = String(extraction.max_hr);
+        next.max_hr = extraction.max_hr;
         recognizedFields.push("max_hr");
       }
 
@@ -1034,7 +576,6 @@ function App() {
     });
 
     setScreenshotTouchedFields(recognizedFields);
-    setServerFieldErrors({});
     setIsScreenshotConfirmed(false);
     setActiveCaseId(null);
   };
@@ -1083,7 +624,6 @@ function App() {
   const runAnalyze = async (payload: AnalyzeRecoveryRequest) => {
     setIsLoading(true);
     setError(null);
-    setServerFieldErrors({});
     setAppView("analyzing");
     try {
       const response = await analyzeRecovery(payload);
@@ -1094,11 +634,7 @@ function App() {
       setFeedbackStatus("idle");
       void loadHistory();
     } catch (requestError) {
-      const normalizedError = normalizeAnalyzeError(
-        requestError instanceof Error ? requestError.message : "分析请求失败",
-      );
-      setServerFieldErrors(normalizedError.fieldErrors);
-      setError(normalizedError.message);
+      setError(requestError instanceof Error ? requestError.message : "分析请求失败");
       setInputStep("confirm");
       setAppView("input");
     } finally {
@@ -1113,9 +649,6 @@ function App() {
 
   const handleDemoCase = (demoCase: DemoCase) => {
     setForm(toEditableForm(demoCase.payload));
-    setSpecialtyForm(defaultSpecialtyForm);
-    setManualTouchedFields([]);
-    setServerFieldErrors({});
     setActiveCaseId(demoCase.id);
     setInputStep("confirm");
     void runAnalyze(demoCase.payload);
@@ -1151,9 +684,9 @@ function App() {
   };
 
   const handleReanalyze = () => {
-    const payload = buildAnalyzePayload(form, validation);
+    const payload = buildAnalyzePayload(form);
     if (!payload) {
-      setError("请先修正输入错误后再重新分析。");
+      setError("请先填写距离、时长和睡眠时间。");
       setAppView("input");
       setInputStep("confirm");
       return;
@@ -1162,21 +695,21 @@ function App() {
   };
 
   const pace = useMemo(() => {
-    if (!validation.parsed.distance_km || !validation.parsed.duration_min) {
+    if (!form.distance_km || !form.duration_min) {
       return "0:00";
     }
-    const totalSeconds = Math.round((validation.parsed.duration_min * 60) / validation.parsed.distance_km);
+    const totalSeconds = Math.round((form.duration_min * 60) / form.distance_km);
     const minutes = Math.floor(totalSeconds / 60);
     const seconds = String(totalSeconds % 60).padStart(2, "0");
     return `${minutes}:${seconds}`;
-  }, [validation.parsed.distance_km, validation.parsed.duration_min]);
+  }, [form.distance_km, form.duration_min]);
 
   const headerMetrics: HeaderMetricProps[] = [
     { label: "配速", value: `${pace}/km`, icon: Clock3 },
     { label: "RPE", value: `${form.rpe}/10`, icon: Zap },
     {
       label: "睡眠",
-      value: validation.parsed.sleep_hours === null ? "未填" : `${formatCompactNumber(validation.parsed.sleep_hours)}h`,
+      value: form.sleep_hours === null ? "未填" : `${formatCompactNumber(form.sleep_hours)}h`,
       icon: Moon,
     },
     {
@@ -1251,18 +784,19 @@ function App() {
               <div className="field-grid two-columns">
                 <NumberField
                   label="距离 km"
-                  spec={numberFieldSpecs.distance_km}
+                  min={0.5}
+                  max={60}
+                  step={0.1}
                   value={form.distance_km}
-                  error={fieldErrors.distance_km}
                   source={screenshotTouchedFields.includes("distance_km") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("distance_km", value)}
                 />
                 <NumberField
                   label="时长 min"
-                  spec={numberFieldSpecs.duration_min}
+                  min={5}
+                  max={360}
+                  step={1}
                   value={form.duration_min}
-                  error={fieldErrors.duration_min}
-                  hint={formatDurationHint(validation.parsed.duration_min)}
                   source={screenshotTouchedFields.includes("duration_min") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("duration_min", value)}
                 />
@@ -1285,15 +819,6 @@ function App() {
                 />
               </div>
 
-              <SpecialTrainingFields
-                runType={form.run_type_main}
-                specialty={specialtyForm}
-                errors={fieldErrors}
-                onChange={updateSpecialtyField}
-                onToggleLongFlag={toggleLongRunFlag}
-                onRaceNearAllOutChange={updateRaceNearAllOut}
-              />
-
               <ModifierFieldset
                 options={visibleModifierOptions}
                 selected={form.run_type_modifier}
@@ -1311,45 +836,44 @@ function App() {
               <div className="field-grid three-columns">
                 <NumberField
                   label="睡眠 h"
-                  spec={numberFieldSpecs.sleep_hours}
+                  min={0}
+                  max={14}
+                  step={0.1}
                   value={form.sleep_hours}
-                  error={fieldErrors.sleep_hours}
                   onChange={(value) => updateField("sleep_hours", value)}
                 />
                 <RangeField
                   label="疲劳"
                   value={form.fatigue_level}
                   hint={getFatigueLabel(form.fatigue_level)}
-                  anchors={fatigueAnchors}
                   onChange={(value) => updateField("fatigue_level", value)}
                 />
                 <RangeField
                   label="酸痛"
                   value={form.soreness_level}
                   hint={getSorenessLabel(form.soreness_level)}
-                  anchors={sorenessAnchors}
                   onChange={(value) => updateField("soreness_level", value)}
                 />
               </div>
 
-              <p className="input-note compact">心率选填；没有运动手表可以留空。</p>
-
               <div className="field-grid two-columns">
                 <NumberField
                   label="平均心率"
-                  spec={numberFieldSpecs.avg_hr}
+                  min={40}
+                  max={230}
+                  step={1}
                   value={form.avg_hr}
                   optional
-                  error={fieldErrors.avg_hr}
                   source={screenshotTouchedFields.includes("avg_hr") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("avg_hr", value)}
                 />
                 <NumberField
                   label="最大心率"
-                  spec={numberFieldSpecs.max_hr}
+                  min={40}
+                  max={230}
+                  step={1}
                   value={form.max_hr}
                   optional
-                  error={fieldErrors.max_hr}
                   source={screenshotTouchedFields.includes("max_hr") ? "已从截图识别，可修改" : undefined}
                   onChange={(value) => updateField("max_hr", value)}
                 />
@@ -1412,15 +936,7 @@ function App() {
         return (
           <div className="wizard-step">
             <FormSection eyebrow="Review" title="输入摘要" icon={ClipboardList}>
-              <InputSummary
-                form={form}
-                specialty={specialtyForm}
-                parsed={validation.parsed}
-                pace={pace}
-                warnings={validation.warnings}
-                errors={fieldErrors}
-                onEdit={setInputStep}
-              />
+              <InputSummary form={form} pace={pace} />
             </FormSection>
           </div>
         );
@@ -1429,7 +945,6 @@ function App() {
     }
   })();
   const ActiveStepIcon = activeInputStep.icon;
-  const currentStepHasErrors = getStepFieldErrors(inputStep).length > 0;
 
   return (
     <div className="app-shell">
@@ -1503,7 +1018,7 @@ function App() {
                   <RotateCcw size={18} aria-hidden="true" />
                   重置
                 </button>
-                <button className="primary-button" type="submit" disabled={isLoading || currentStepHasErrors}>
+                <button className="primary-button" type="submit" disabled={isLoading}>
                   {isLoading ? (
                     <Loader2 className="spin" size={18} aria-hidden="true" />
                   ) : inputStep === "confirm" ? (
@@ -1654,35 +1169,16 @@ function MethodCard({
   );
 }
 
-function InputSummary({
-  form,
-  specialty,
-  parsed,
-  pace,
-  warnings,
-  errors,
-  onEdit,
-}: {
-  form: EditableAnalyzeRecoveryRequest;
-  specialty: SpecialtyForm;
-  parsed: ParsedAnalyzeValues;
-  pace: string;
-  warnings: string[];
-  errors: FieldErrors;
-  onEdit: (step: InputStepId) => void;
-}) {
-  const errorMessages = Object.values(errors).filter(Boolean);
+function InputSummary({ form, pace }: { form: EditableAnalyzeRecoveryRequest; pace: string }) {
   const summaryGroups: Array<{
     title: string;
-    step: InputStepId;
     items: Array<{ label: string; value: string }>;
   }> = [
     {
       title: "跑步负荷",
-      step: "load",
       items: [
-        { label: "距离", value: `${formatCompactNumber(parsed.distance_km)} km` },
-        { label: "时长", value: `${formatCompactNumber(parsed.duration_min)} min` },
+        { label: "距离", value: `${formatCompactNumber(form.distance_km)} km` },
+        { label: "时长", value: `${formatCompactNumber(form.duration_min)} min` },
         { label: "配速", value: `${pace}/km` },
         { label: "类型", value: runTypeLabel(form.run_type_main) },
         { label: "时间", value: runTimeLabel(form.run_time_period) },
@@ -1693,24 +1189,21 @@ function InputSummary({
               ? form.run_type_modifier.map(runModifierLabel).join("、")
               : "无",
         },
-        ...buildSpecialtySummaryItems(form.run_type_main, specialty),
       ],
     },
     {
       title: "身体状态",
-      step: "body",
       items: [
         { label: "RPE", value: `${form.rpe}/10` },
-        { label: "睡眠", value: `${formatCompactNumber(parsed.sleep_hours)} h` },
+        { label: "睡眠", value: `${formatCompactNumber(form.sleep_hours)} h` },
         { label: "疲劳", value: `${form.fatigue_level}/10` },
         { label: "酸痛", value: `${form.soreness_level}/10` },
-        { label: "平均心率", value: parsed.avg_hr === null ? "未填" : `${Math.round(parsed.avg_hr)} bpm` },
-        { label: "最大心率", value: parsed.max_hr === null ? "未填" : `${Math.round(parsed.max_hr)} bpm` },
+        { label: "平均心率", value: form.avg_hr === null ? "未填" : `${Math.round(form.avg_hr)} bpm` },
+        { label: "最大心率", value: form.max_hr === null ? "未填" : `${Math.round(form.max_hr)} bpm` },
       ],
     },
     {
       title: "恢复约束",
-      step: "context",
       items: [
         { label: "跑步水平", value: userLevelLabel(form.user_level) },
         {
@@ -1739,51 +1232,20 @@ function InputSummary({
   ];
 
   return (
-    <div className="confirm-stack">
-      {errorMessages.length > 0 ? (
-        <div className="review-alert error" role="alert">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <div>
-            <strong>提交前需要修正</strong>
-            {errorMessages.map((message) => (
-              <p key={message}>{message}</p>
+    <div className="input-summary-grid">
+      {summaryGroups.map((group) => (
+        <article className="summary-card" key={group.title}>
+          <h3>{group.title}</h3>
+          <dl className="summary-list">
+            {group.items.map((item) => (
+              <div className="summary-row" key={`${group.title}-${item.label}`}>
+                <dt>{item.label}</dt>
+                <dd>{item.value}</dd>
+              </div>
             ))}
-          </div>
-        </div>
-      ) : null}
-
-      {warnings.length > 0 ? (
-        <div className="review-alert warning">
-          <AlertTriangle size={18} aria-hidden="true" />
-          <div>
-            <strong>建议检查</strong>
-            {warnings.map((warning) => (
-              <p key={warning}>{warning}</p>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      <div className="input-summary-grid">
-        {summaryGroups.map((group) => (
-          <article className="summary-card" key={group.title}>
-            <div className="summary-card-heading">
-              <h3>{group.title}</h3>
-              <button className="link-button" type="button" onClick={() => onEdit(group.step)}>
-                返回修改
-              </button>
-            </div>
-            <dl className="summary-list">
-              {group.items.map((item) => (
-                <div className="summary-row" key={`${group.title}-${item.label}`}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </article>
-        ))}
-      </div>
+          </dl>
+        </article>
+      ))}
     </div>
   );
 }
@@ -2057,183 +1519,36 @@ function ModifierFieldset({ options, selected, onToggle }: ModifierFieldsetProps
   );
 }
 
-type SpecialTrainingFieldsProps = {
-  runType: RunTypeMain;
-  specialty: SpecialtyForm;
-  errors: FieldErrors;
-  onChange: <K extends keyof SpecialtyForm>(field: K, value: SpecialtyForm[K]) => void;
-  onToggleLongFlag: (field: "long_has_pace_block" | "long_progressive_finish" | "long_is_lsd") => void;
-  onRaceNearAllOutChange: (checked: boolean) => void;
-};
-
-function SpecialTrainingFields({
-  runType,
-  specialty,
-  errors,
-  onChange,
-  onToggleLongFlag,
-  onRaceNearAllOutChange,
-}: SpecialTrainingFieldsProps) {
-  if (runType === "interval") {
-    return (
-      <section className="specialty-panel" aria-labelledby="interval-fields-title">
-        <div className="minor-heading" id="interval-fields-title">
-          间歇训练结构
-        </div>
-        <div className="field-grid three-columns">
-          <NumberField
-            label="组数"
-            spec={numberFieldSpecs.interval_reps}
-            value={specialty.interval_reps}
-            error={errors.interval_reps}
-            onChange={(value) => onChange("interval_reps", value)}
-          />
-          <NumberField
-            label="单组距离"
-            spec={numberFieldSpecs.interval_work_distance_m}
-            value={specialty.interval_work_distance_m}
-            error={errors.interval_work_distance_m}
-            onChange={(value) => onChange("interval_work_distance_m", value)}
-          />
-          <NumberField
-            label="组间休息"
-            spec={numberFieldSpecs.interval_rest_duration_sec}
-            value={specialty.interval_rest_duration_sec}
-            error={errors.interval_rest_duration_sec}
-            onChange={(value) => onChange("interval_rest_duration_sec", value)}
-          />
-        </div>
-        <div className="field-grid two-columns">
-          <SelectField
-            label="休息方式"
-            value={specialty.interval_rest_type}
-            options={intervalRestTypeOptions}
-            onChange={(value) => onChange("interval_rest_type", value as IntervalRestType)}
-          />
-          <label className="field">
-            <span>强度备注</span>
-            <input
-              type="text"
-              value={specialty.interval_intensity_note}
-              placeholder="选填，例如接近 5km 配速"
-              onChange={(event) => onChange("interval_intensity_note", event.target.value)}
-            />
-            <small className="field-hint">仅用于确认页记录，不改变当前恢复评分。</small>
-          </label>
-        </div>
-      </section>
-    );
-  }
-
-  if (runType === "long") {
-    return (
-      <section className="specialty-panel" aria-labelledby="long-fields-title">
-        <div className="minor-heading" id="long-fields-title">
-          长距离补充
-        </div>
-        <div className="symptom-grid modifier-grid">
-          <CheckboxPill
-            label="普通 LSD"
-            checked={specialty.long_is_lsd}
-            onChange={() => onToggleLongFlag("long_is_lsd")}
-          />
-          <CheckboxPill
-            label="包含目标配速段"
-            checked={specialty.long_has_pace_block}
-            onChange={() => onToggleLongFlag("long_has_pace_block")}
-          />
-          <CheckboxPill
-            label="后半程加速"
-            checked={specialty.long_progressive_finish}
-            onChange={() => onToggleLongFlag("long_progressive_finish")}
-          />
-        </div>
-      </section>
-    );
-  }
-
-  if (runType === "race") {
-    return (
-      <section className="specialty-panel" aria-labelledby="race-fields-title">
-        <div className="minor-heading" id="race-fields-title">
-          比赛补充
-        </div>
-        <div className="field-grid two-columns">
-          <SelectField
-            label="比赛距离"
-            value={specialty.race_distance}
-            options={raceDistanceOptions}
-            onChange={(value) => onChange("race_distance", value as RaceDistance)}
-          />
-          <div className="standalone-checkbox">
-            <CheckboxPill
-              label="接近全力"
-              checked={specialty.race_near_all_out}
-              onChange={() => onRaceNearAllOutChange(!specialty.race_near_all_out)}
-            />
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  return null;
-}
-
-function CheckboxPill({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string;
-  checked: boolean;
-  onChange: () => void;
-}) {
-  return (
-    <label className="checkbox-pill">
-      <input type="checkbox" checked={checked} onChange={onChange} />
-      <span>{label}</span>
-    </label>
-  );
-}
-
 type NumberFieldProps = {
   label: string;
-  spec: NumberFieldSpec;
-  value: string;
+  min: number;
+  max: number;
+  step: number;
+  value: number | null;
   optional?: boolean;
   source?: string;
-  hint?: string;
-  error?: string;
-  onChange: (value: string) => void;
+  onChange: (value: number | null) => void;
 };
 
-function NumberField({ label, spec, value, optional, source, hint, error, onChange }: NumberFieldProps) {
+function NumberField({ label, min, max, step, value, optional, source, onChange }: NumberFieldProps) {
   return (
-    <label className={error ? "field has-error" : "field"}>
-      <span className="field-label-row">
-        <span>{label}</span>
-        <small>{fieldLimitLabel(spec)}</small>
-      </span>
-      <div className="input-with-unit">
-        <input
-          type="text"
-          value={value}
-          placeholder={optional ? "选填" : undefined}
-          inputMode={spec.integer ? "numeric" : "decimal"}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${label}-error` : undefined}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <span>{spec.unit}</span>
-      </div>
+    <label className="field">
+      <span>{label}</span>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value ?? ""}
+        placeholder={optional ? "选填" : undefined}
+        required={!optional}
+        inputMode={step < 1 ? "decimal" : "numeric"}
+        onChange={(event) => {
+          const nextValue = event.target.value;
+          onChange(nextValue === "" ? null : Number(nextValue));
+        }}
+      />
       {source ? <small className="field-source">{source}</small> : null}
-      {hint && !error ? <small className="field-hint">{hint}</small> : null}
-      {error ? (
-        <small className="field-error" id={`${label}-error`}>
-          {error}
-        </small>
-      ) : null}
     </label>
   );
 }
@@ -2266,11 +1581,10 @@ type RangeFieldProps = {
   label: string;
   value: number;
   hint?: string;
-  anchors: ScaleAnchor[];
   onChange: (value: number) => void;
 };
 
-function RangeField({ label, value, hint, anchors, onChange }: RangeFieldProps) {
+function RangeField({ label, value, hint, onChange }: RangeFieldProps) {
   return (
     <label className="range-field">
       <span>
@@ -2285,8 +1599,7 @@ function RangeField({ label, value, hint, anchors, onChange }: RangeFieldProps) 
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
-      {hint ? <strong className="scale-current">{hint}</strong> : null}
-      <ScaleAnchors items={anchors} />
+      {hint ? <small>{hint}</small> : null}
     </label>
   );
 }
@@ -2304,7 +1617,7 @@ function RpeSlider({ value, onChange }: RpeSliderProps) {
         <div>
           <span>RPE 主观用力</span>
           <strong>{value}/10</strong>
-          <small>主观恢复关键项</small>
+          <small>核心输入 · 用身体反馈校准恢复压力</small>
         </div>
         <p>{label}</p>
       </div>
@@ -2322,21 +1635,7 @@ function RpeSlider({ value, onChange }: RpeSliderProps) {
         <span>中等</span>
         <span>很吃力</span>
       </div>
-      <ScaleAnchors items={rpeAnchors} tone="dark" />
     </div>
-  );
-}
-
-function ScaleAnchors({ items, tone }: { items: ScaleAnchor[]; tone?: "dark" }) {
-  return (
-    <ul className={tone === "dark" ? "scale-anchors dark" : "scale-anchors"}>
-      {items.map((item) => (
-        <li key={`${item.range}-${item.label}`}>
-          <span>{item.range}</span>
-          <strong>{item.label}</strong>
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -2413,12 +1712,12 @@ function ResultSummary({ result }: { result: AnalyzeRecoveryResponse }) {
               <strong>{result.reasons.length} 项</strong>
             </div>
             <div>
-              <span>安全提示</span>
-              <strong>{result.safety_flags.length > 0 ? `${result.safety_flags.length} 项` : "无"}</strong>
+              <span>Session load</span>
+              <strong>{result.derived_metrics.session_load ?? 0}</strong>
             </div>
             <div>
-              <span>恢复计划</span>
-              <strong>{result.timeline.length} 段</strong>
+              <span>建议状态</span>
+              <strong>{result.recommendation_meta.used_fallback ? "模板兜底" : "已校验"}</strong>
             </div>
           </div>
         </div>
@@ -2495,7 +1794,28 @@ function ResultDetails({ result }: { result: AnalyzeRecoveryResponse }) {
       </section>
 
       <ComponentBreakdown componentScores={result.component_scores} />
+
+      <div className="details-grid">
+        <DetailList title="Derived metrics" entries={result.derived_metrics} />
+        <DetailList title="Recommendation meta" entries={{ ...result.recommendation_meta }} />
+      </div>
     </div>
+  );
+}
+
+function DetailList({ title, entries }: { title: string; entries: Record<string, unknown> }) {
+  return (
+    <section className="detail-card">
+      <div className="minor-heading">{title}</div>
+      <dl className="detail-list">
+        {Object.entries(entries).map(([key, value]) => (
+          <div className="detail-row" key={key}>
+            <dt>{key}</dt>
+            <dd>{formatDetailValue(value)}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   );
 }
 
@@ -2798,28 +2118,28 @@ function HistoryPanel({ items, error }: { items: RecoveryHistoryItem[]; error: s
 
 function getRpeLabel(value: number) {
   if (value <= 2) {
-    return "轻松聊天";
+    return "非常轻松，可以完整聊天";
   }
   if (value <= 4) {
-    return "呼吸略快";
+    return "轻松到中等，呼吸略快";
   }
   if (value <= 6) {
-    return "需要专注";
+    return "有一定吃力，需要专注维持";
   }
   if (value <= 8) {
-    return "说话困难";
+    return "明显吃力，说话困难";
   }
-  return "接近极限";
+  return "接近极限或拼尽全力";
 }
 
 function getFatigueLabel(value: number) {
   if (value <= 3) {
-    return "轻松";
+    return "几乎不累";
   }
   if (value <= 7) {
-    return "明显疲劳";
+    return "有明显疲劳，但不影响正常活动";
   }
-  return "需要休息";
+  return "只想休息，不适合继续训练";
 }
 
 function getSorenessLabel(value: number) {
@@ -2827,55 +2147,9 @@ function getSorenessLabel(value: number) {
     return "无明显酸痛";
   }
   if (value <= 7) {
-    return "有酸痛";
+    return "能感受到，但不影响正常走路";
   }
-  return "影响步态";
-}
-
-function buildSpecialtySummaryItems(runType: RunTypeMain, specialty: SpecialtyForm) {
-  if (runType === "interval") {
-    const structureParts = [
-      specialty.interval_reps.trim() ? `${specialty.interval_reps.trim()} 组` : "组数未填",
-      specialty.interval_work_distance_m.trim() ? `${specialty.interval_work_distance_m.trim()}m` : "单组距离未填",
-      specialty.interval_rest_duration_sec.trim()
-        ? `休 ${specialty.interval_rest_duration_sec.trim()}s`
-        : "休息未填",
-      intervalRestTypeLabel(specialty.interval_rest_type),
-    ];
-    return [
-      { label: "间歇结构", value: structureParts.join(" / ") },
-      {
-        label: "强度备注",
-        value: specialty.interval_intensity_note.trim() || "未填",
-      },
-    ];
-  }
-
-  if (runType === "long") {
-    const tags = [
-      specialty.long_is_lsd ? "普通 LSD" : null,
-      specialty.long_has_pace_block ? "目标配速段" : null,
-      specialty.long_progressive_finish ? "后半程加速" : null,
-    ].filter(Boolean);
-    return [{ label: "长距离属性", value: tags.length > 0 ? tags.join("、") : "未选择" }];
-  }
-
-  if (runType === "race") {
-    return [
-      { label: "比赛距离", value: raceDistanceLabel(specialty.race_distance) },
-      { label: "比赛强度", value: specialty.race_near_all_out ? "接近全力" : "非全力/未标记" },
-    ];
-  }
-
-  return [];
-}
-
-function intervalRestTypeLabel(value: string) {
-  return intervalRestTypeOptions.find((option) => option.value === value)?.label ?? value;
-}
-
-function raceDistanceLabel(value: string) {
-  return raceDistanceOptions.find((option) => option.value === value)?.label ?? value;
+  return "影响上下楼或正常步态";
 }
 
 function runTypeLabel(value: string) {
@@ -2904,6 +2178,19 @@ function symptomLabel(value: string) {
   return symptomOptions.find((option) => option.value === value)?.label ?? value;
 }
 
+function formatDetailValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "null";
+  }
+  if (typeof value === "boolean") {
+    return value ? "true" : "false";
+  }
+  if (typeof value === "number") {
+    return formatCompactNumber(value);
+  }
+  return String(value);
+}
+
 function formatHistoryDate(value: string) {
   return value.slice(0, 16).replace("T", " ");
 }
@@ -2912,26 +2199,7 @@ function formatCompactNumber(value: number | null) {
   if (value === null) {
     return "--";
   }
-  if (Number.isInteger(value)) {
-    return String(value);
-  }
-  return String(Number(value.toFixed(2)));
-}
-
-function fieldLimitLabel(spec: NumberFieldSpec) {
-  return spec.required ? `${spec.min}–${spec.max}` : `选填 · ${spec.min}–${spec.max}`;
-}
-
-function formatDurationHint(value: number | null) {
-  if (value === null) {
-    return "";
-  }
-  const hours = Math.floor(value / 60);
-  const minutes = Math.round(value % 60);
-  if (hours <= 0) {
-    return "";
-  }
-  return `约 ${hours} 小时 ${minutes} 分钟，提交仍按分钟计算。`;
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 export default App;

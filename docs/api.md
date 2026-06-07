@@ -45,8 +45,6 @@ Analyzes one post-run recovery input and persists the result to SQLite.
 
 `user_level` is optional and defaults to `regular`. Supported values are `beginner`, `regular`, and `advanced`. It is used as a lightweight advice-calibration layer for wording, conservativeness, and tomorrow guidance; it should not materially change the recovery score. Clients may also send `user_profile` with `running_years`, `weekly_runs`, `weekly_mileage_km`, `race_goal`, or nested `user_level`; when top-level `user_level` is omitted, the backend can infer a simple level from that profile.
 
-`symptoms` accepts an array of abnormal-signal identifiers: `chest_pain`, `dizziness`, `breathing_difficulty`, `palpitations`, `fainting`, `nausea_vomiting`, `joint_pain`, `pain_affects_walking`, `swelling`, `numbness_tingling`, `one_sided_calf_pain`, `fever_infection`, and `dark_urine`.
-
 ### Response
 
 ```json
@@ -65,7 +63,6 @@ Analyzes one post-run recovery input and persists the result to SQLite.
     "fatigue": 8,
     "soreness": 5,
     "recent_training": 7,
-    "symptoms": 0,
     "time": 6,
     "tomorrow_conflict": 8
   },

@@ -118,7 +118,6 @@ def test_analyze_recovery_returns_complete_response(tmp_path, monkeypatch):
     assert body["level"] == "重点恢复"
     assert body["component_scores"]["rpe"] == 13
     assert body["component_scores"]["duration_load"] == 4
-    assert body["component_scores"]["symptoms"] == 0
     assert body["derived_metrics"]["session_load"] == 384
     assert len(body["reasons"]) >= 3
     assert len(body["timeline"]) >= 5
@@ -158,23 +157,6 @@ def test_safety_response_places_flags(tmp_path, monkeypatch):
     assert response.status_code == 200
     assert body["safety_flags"]
     assert "医疗诊断" in body["advice"]["safety_note"]
-
-
-def test_new_safety_symptoms_are_scored_and_explained(tmp_path, monkeypatch):
-    with make_client(tmp_path, monkeypatch) as client:
-        response = client.post(
-            "/api/recovery/analyze",
-            json=valid_payload(
-                symptoms=["palpitations", "one_sided_calf_pain", "dark_urine"],
-            ),
-        )
-
-    body = response.json()
-
-    assert response.status_code == 200
-    assert body["component_scores"]["symptoms"] == 18
-    assert any("心悸" in flag for flag in body["safety_flags"])
-    assert any(reason["factor"] == "异常信号" for reason in body["reasons"])
 
 
 def test_new_training_fields_are_accepted(tmp_path, monkeypatch):

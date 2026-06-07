@@ -171,7 +171,6 @@ class OpenAIRecommendationProvider(RecommendationProvider):
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
-            max_tokens=1600,
         )
         content = response.choices[0].message.content or "{}"
         return json.loads(content)
@@ -277,7 +276,6 @@ class DeepSeekRecommendationProvider(RecommendationProvider):
             ],
             response_format={"type": "json_object"},
             temperature=0.3,
-            max_tokens=1600,
         )
         content = response.choices[0].message.content or "{}"
         return json.loads(content)
@@ -374,7 +372,7 @@ class AnthropicRecommendationProvider(RecommendationProvider):
             },
             json={
                 "model": self._model,
-                "max_tokens": 1600,
+                "max_tokens": 1200,
                 "system": _SYSTEM_PROMPT,
                 "messages": [
                     {
@@ -477,18 +475,17 @@ _SYSTEM_PROMPT = (
     "必须严格返回 JSON 对象，不要包含任何多余文字或 markdown 格式。\n"
     "JSON 结构如下：\n"
     "{\n"
-    '  "summary": "整体恢复情况的 1-2 句总结",\n'
-    '  "diet":       { "title": "饮食建议", "content": "2-4 句具体建议，包含进食时间、食物组合和注意事项" },\n'
-    '  "hydration":  { "title": "补水建议", "content": "2-4 句具体建议，包含补水节奏、是否需要电解质和观察信号" },\n'
-    '  "sleep":      { "title": "睡眠建议", "content": "2-4 句具体建议，包含今晚睡前安排和明早判断依据" },\n'
-    '  "relaxation": { "title": "放松建议", "content": "2-4 句具体建议，包含适合做什么和避免做什么" },\n'
-    '  "tomorrow":   { "title": "明日安排", "content": "2-4 句具体建议，包含训练是否降级、替代方案和停止条件" },\n'
+    '  "summary": "整体恢复情况的一句话总结",\n'
+    '  "diet":       { "title": "饮食建议", "content": "具体建议内容" },\n'
+    '  "hydration":  { "title": "补水建议", "content": "具体建议内容" },\n'
+    '  "sleep":      { "title": "睡眠建议", "content": "具体建议内容" },\n'
+    '  "relaxation": { "title": "放松建议", "content": "具体建议内容" },\n'
+    '  "tomorrow":   { "title": "明日安排", "content": "具体建议内容" },\n'
     '  "timeline": [\n'
     '    { "time": "跑后 0-15 分钟", "action": "..." },\n'
     '    ...\n'
     "  ]\n"
     "}\n"
-    "timeline 每项 action 可以写得比卡片更行动化，说明用户当下要做什么。\n"
     "语气温和，建议实用，不做医疗诊断。"
 )
 
@@ -511,6 +508,5 @@ def _build_user_prompt(
         f"派生指标：{score_result.derived_metrics}\n"
         f"主要原因 reasons：{json.dumps([reason.model_dump() for reason in reasons], ensure_ascii=False)}\n"
         f"安全预警标记：{safety_flags if safety_flags else '无'}\n\n"
-        "请根据以上数据生成恢复建议，以 JSON 格式返回。"
-        "建议内容不需要压缩成单句，允许适度展开，但仍要清晰、可执行，并覆盖 reasons 中的主要因素。"
+        "请根据以上数据生成恢复建议，以 JSON 格式返回，并确保建议重点覆盖 reasons 中的主要因素。"
     )
