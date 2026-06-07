@@ -1,0 +1,11 @@
+{
+  "name": "runrecover",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "./scripts/dev.sh",
+    "dev:mobile": "./scripts/dev-mobile.sh",
+    "dev:domain": "./scripts/dev-domain.sh",
+    "dev:tunnel": "./scripts/dev-tunnel.sh"
+  }
+}

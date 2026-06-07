@@ -1,0 +1,27 @@
+{
+  "name": "RunRecover",
+  "short_name": "RunRecover",
+  "description": "跑后恢复分析与 24 小时恢复建议",
+  "lang": "zh-CN",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#eef3f5",
+  "theme_color": "#16805e",
+  "categories": ["health", "fitness", "sports"],
+  "icons": [
+    {
+      "src": "/icons/runrecover-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/runrecover-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

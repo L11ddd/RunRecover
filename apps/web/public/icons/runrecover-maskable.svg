@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="RunRecover">
+  <rect width="512" height="512" fill="#16805e"/>
+  <circle cx="256" cy="256" r="224" fill="#16805e"/>
+  <path d="M128 286c43-101 103-152 181-152 43 0 80 13 111 40" fill="none" stroke="#ffffff" stroke-width="38" stroke-linecap="round"/>
+  <path d="M111 339c33-35 71-52 113-52 36 0 68 10 97 30 23 16 49 24 78 24" fill="none" stroke="#cfeee3" stroke-width="34" stroke-linecap="round"/>
+  <circle cx="318" cy="135" r="32" fill="#ffffff"/>
+  <path d="M148 394h218" fill="none" stroke="#ffffff" stroke-width="30" stroke-linecap="round" opacity=".9"/>
+</svg>
